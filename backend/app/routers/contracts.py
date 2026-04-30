@@ -1,0 +1,403 @@
+# FILE: contracts.py | PURPOSE: Contract CRUD + file upload with Clerk auth gate | CONNECTS TO: main.py (router mount), middleware/clerk_auth.py (JWT), db/supabase.py (storage + db), db/models.py (ContractRead)
+
+# ── IMPORTS ───────────────────────────────────────────────────────────────────
+import logging
+import uuid                                          # generate contract UUID before upload (needed for storage path)
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
+                                                     # BackgroundTasks: runs pipeline after response is sent
+from app.middleware.clerk_auth import get_current_user_id  # JWT dependency — injects clerk_user_id
+from app.db.supabase import get_service_client       # service client used for all backend DB ops
+from app.db.models import ContractRead, ContractCreate, ContractUpdate
+
+logger = logging.getLogger(__name__)
+router = APIRouter()
+
+# ── CONSTANTS ─────────────────────────────────────────────────────────────────
+# Allowed MIME types — must match the Storage bucket settings in schema.sql comments
+ALLOWED_MIME_TYPES = {
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
+MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024   # 10 MB — matches Supabase Storage bucket limit
+
+# Extension map: MIME type → file extension used in the Storage path
+MIME_TO_EXT = {
+    "application/pdf": "pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+}
+
+STORAGE_BUCKET = "contracts"   # Supabase Storage bucket name — must be created manually first
+
+
+# ── UPLOAD ────────────────────────────────────────────────────────────────────
+@router.post("/upload", response_model=ContractRead, status_code=201)
+async def upload_contract(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),                              # multipart file field
+    name: str | None = Form(None),                             # optional display name; defaults to filename
+    clerk_user_id: str = Depends(get_current_user_id),         # JWT validation — rejects unauthenticated requests
+) -> ContractRead:
+    """
+    WHY: This is the entry point for the entire ClauseGuardian pipeline.
+    A user uploads a PDF or DOCX, we store it in Supabase Storage, create a contracts
+    row, and kick off the async analysis pipeline in the background.
+
+    FLOW:
+      1. Validate MIME type — reject anything that's not PDF or DOCX
+      2. Read file bytes and validate size — reject files over 10 MB
+      3. Generate a contract UUID (needed before upload to build the storage path)
+      4. Upload raw bytes to Supabase Storage at contracts/{clerk_user_id}/{contract_id}.{ext}
+      5. Insert a contracts row with status="processing" and the storage path
+      6. Enqueue the analysis pipeline as a background task (runs after response is sent)
+      7. Return the new ContractRead — frontend polls status until it becomes "complete"
+
+    Args:
+        background_tasks: FastAPI background task queue — pipeline runs here
+        file:             uploaded file from multipart/form-data
+        name:             optional display name; if omitted, uses the original filename
+        clerk_user_id:    injected by Depends(get_current_user_id) from the Clerk JWT
+
+    Returns:
+        ContractRead: the newly created contract row (status="processing")
+
+    Raises:
+        HTTPException 415: file type is not PDF or DOCX
+        HTTPException 413: file exceeds 10 MB limit
+        HTTPException 502: Supabase Storage upload failed
+        HTTPException 502: Supabase DB insert failed
+    """
+    # Step 1: Validate MIME type
+    # content_type can be None if the client doesn't set it — treat None as invalid
+    if file.content_type not in ALLOWED_MIME_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported file type: '{file.content_type}'. Upload a PDF or DOCX.",
+        )
+
+    # Step 2: Read bytes + validate size
+    # We read the entire file into memory here. For files up to 10 MB this is fine.
+    # Decision: streaming upload would be more memory-efficient but complicates
+    # the size check; at 10 MB the simplicity tradeoff is worth it.
+    file_bytes = await file.read()
+    if len(file_bytes) > MAX_FILE_SIZE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large: {len(file_bytes) / 1024 / 1024:.1f} MB. Maximum is 10 MB.",
+        )
+
+    # Step 3: Generate contract UUID now so we can use it in both the storage path and DB row
+    contract_id = str(uuid.uuid4())
+    ext = MIME_TO_EXT[file.content_type]
+    storage_path = f"{clerk_user_id}/{contract_id}.{ext}"
+    display_name = name or file.filename or f"contract-{contract_id[:8]}"
+
+    client = get_service_client()
+
+    # Step 4: Upload to Supabase Storage
+    # Path: contracts/{clerk_user_id}/{contract_id}.pdf (or .docx)
+    # Using clerk_user_id as a folder makes it easy to audit and clean up per-user data.
+    # Failure here: Storage bucket doesn't exist, service key invalid, or Supabase is down.
+    try:
+        storage_response = client.storage.from_(STORAGE_BUCKET).upload(
+            path=storage_path,
+            file=file_bytes,
+            file_options={"content-type": file.content_type, "upsert": "false"},
+        )
+    except Exception as e:
+        logger.error(f"Storage upload failed for contract_id={contract_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=502,
+            detail="File storage failed — please try again. If this persists, contact support.",
+        )
+
+    logger.info(f"Uploaded to storage: {storage_path}")
+
+    # Step 5: Insert contracts row
+    # status="processing" signals the frontend to show a loading state.
+    # The pipeline background task will update this to "analyzing" then "complete" (or "failed").
+    # Failure here: DB is down, or users row doesn't exist yet (webhook hasn't fired).
+    try:
+        db_response = (
+            client.table("contracts")
+            .insert(
+                {
+                    "id": contract_id,
+                    "clerk_user_id": clerk_user_id,
+                    "name": display_name,
+                    "file_url": storage_path,
+                    "status": "processing",
+                }
+            )
+            .execute()
+        )
+    except Exception as e:
+        # Storage upload succeeded but DB insert failed — clean up the orphaned file
+        logger.error(f"DB insert failed for contract_id={contract_id}: {e}", exc_info=True)
+        _delete_from_storage(client, storage_path)
+        raise HTTPException(
+            status_code=502,
+            detail="Failed to save contract record. Please try again.",
+        )
+
+    if not db_response.data:
+        _delete_from_storage(client, storage_path)
+        raise HTTPException(status_code=502, detail="Contract record was not created.")
+
+    contract_row = db_response.data[0]
+    logger.info(f"Created contract row: id={contract_id}, user={clerk_user_id}")
+
+    # Step 6: Enqueue analysis pipeline as a background task
+    # BackgroundTasks runs AFTER FastAPI sends the 201 response — the user isn't waiting.
+    # The pipeline updates status → "analyzing" → "complete" (or "failed") as it progresses.
+    # Decision: background task vs. async queue (Celery/Redis):
+    #   Background tasks are simpler for a single Render instance. When we scale to
+    #   multiple workers, replace this with an Upstash queue or Celery task.
+    background_tasks.add_task(_run_analysis_pipeline, contract_id, clerk_user_id, storage_path, ext)
+
+    return ContractRead.model_validate(contract_row)
+
+
+# ── LIST ──────────────────────────────────────────────────────────────────────
+@router.get("/", response_model=list[ContractRead])
+async def list_contracts(
+    clerk_user_id: str = Depends(get_current_user_id),
+) -> list[ContractRead]:
+    """
+    WHY: Powers the main dashboard table — returns all contracts for the signed-in user,
+    sorted newest first. The frontend uses status and overall_risk to render badges.
+
+    FLOW:
+      1. Query contracts table filtered by clerk_user_id
+      2. Order by created_at descending (newest first)
+      3. Return list of ContractRead
+
+    Args:
+        clerk_user_id: injected from the verified Clerk JWT
+
+    Returns:
+        list[ContractRead]: all contracts owned by this user, newest first
+
+    Raises:
+        HTTPException 502: DB query failed
+    """
+    client = get_service_client()
+
+    try:
+        response = (
+            client.table("contracts")
+            .select("*")
+            .eq("clerk_user_id", clerk_user_id)   # enforce data isolation in application layer
+            .order("created_at", desc=True)
+            .execute()
+        )
+    except Exception as e:
+        logger.error(f"Failed to list contracts for user={clerk_user_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=502, detail="Failed to retrieve contracts.")
+
+    return [ContractRead.model_validate(row) for row in response.data]
+
+
+# ── GET ───────────────────────────────────────────────────────────────────────
+@router.get("/{contract_id}", response_model=ContractRead)
+async def get_contract(
+    contract_id: str,
+    clerk_user_id: str = Depends(get_current_user_id),
+) -> ContractRead:
+    """
+    WHY: Returns a single contract — used by the contract detail page.
+    We filter by BOTH contract_id AND clerk_user_id so a user cannot fetch
+    another user's contract by guessing its UUID.
+
+    FLOW:
+      1. Query contracts filtered by id + clerk_user_id (both must match)
+      2. Return ContractRead or 404
+
+    Args:
+        contract_id:   UUID string from the URL path
+        clerk_user_id: injected from the verified Clerk JWT
+
+    Returns:
+        ContractRead: the contract row
+
+    Raises:
+        HTTPException 404: contract not found or belongs to a different user
+        HTTPException 502: DB query failed
+    """
+    client = get_service_client()
+
+    try:
+        response = (
+            client.table("contracts")
+            .select("*")
+            .eq("id", contract_id)
+            .eq("clerk_user_id", clerk_user_id)   # security: can't access other users' contracts
+            .single()                               # raises if 0 or >1 rows returned
+            .execute()
+        )
+    except Exception as e:
+        # .single() raises if the row doesn't exist — map that to 404
+        logger.info(f"Contract not found: id={contract_id}, user={clerk_user_id}")
+        raise HTTPException(status_code=404, detail="Contract not found.")
+
+    return ContractRead.model_validate(response.data)
+
+
+# ── DELETE ────────────────────────────────────────────────────────────────────
+@router.delete("/{contract_id}", status_code=204)
+async def delete_contract(
+    contract_id: str,
+    clerk_user_id: str = Depends(get_current_user_id),
+) -> None:
+    """
+    WHY: Lets users remove contracts they no longer need. Deleting the DB row cascades
+    to clauses and deadlines (ON DELETE CASCADE in schema.sql).
+    We also delete the file from Storage to avoid orphaned blobs.
+
+    FLOW:
+      1. Fetch the contract to confirm ownership and get the file_url for Storage cleanup
+      2. Delete the file from Supabase Storage
+      3. Delete the DB row (cascades: clauses, deadlines are deleted automatically)
+      4. Return 204 No Content
+
+    Args:
+        contract_id:   UUID string from the URL path
+        clerk_user_id: injected from the verified Clerk JWT
+
+    Returns:
+        None (204 No Content)
+
+    Raises:
+        HTTPException 404: contract not found or belongs to a different user
+        HTTPException 502: DB delete failed
+    """
+    client = get_service_client()
+
+    # Step 1: Verify ownership by fetching first — don't delete without confirming the user owns it
+    try:
+        response = (
+            client.table("contracts")
+            .select("id, file_url")
+            .eq("id", contract_id)
+            .eq("clerk_user_id", clerk_user_id)
+            .single()
+            .execute()
+        )
+    except Exception:
+        raise HTTPException(status_code=404, detail="Contract not found.")
+
+    file_url: str | None = response.data.get("file_url")
+
+    # Step 2: Delete from Storage first (best effort — proceed even if this fails)
+    # Failure here leaves an orphaned file but doesn't block the user from deleting the record.
+    if file_url:
+        _delete_from_storage(client, file_url)
+
+    # Step 3: Delete DB row — cascades handle clauses/deadlines automatically
+    try:
+        client.table("contracts").delete().eq("id", contract_id).execute()
+    except Exception as e:
+        logger.error(f"Failed to delete contract id={contract_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=502, detail="Failed to delete contract.")
+
+    logger.info(f"Deleted contract id={contract_id} for user={clerk_user_id}")
+    # 204 No Content — FastAPI returns no body when the function returns None with status_code=204
+
+
+# ── PRIVATE HELPERS ───────────────────────────────────────────────────────────
+
+def _delete_from_storage(client, path: str) -> None:
+    """
+    WHY: Shared cleanup helper — called on DB insert failure and on contract delete.
+    Best-effort: logs errors but does not raise, so callers can continue.
+
+    Args:
+        client: Supabase service client
+        path:   Storage path, e.g. "user_xxx/contract-uuid.pdf"
+    """
+    try:
+        client.storage.from_(STORAGE_BUCKET).remove([path])
+        logger.info(f"Deleted from storage: {path}")
+    except Exception as e:
+        # Log but don't raise — orphaned files are less bad than crashing the request
+        logger.warning(f"Failed to delete storage file at {path}: {e}")
+
+
+async def _run_analysis_pipeline(
+    contract_id: str,
+    clerk_user_id: str,
+    storage_path: str,
+    file_ext: str,
+) -> None:
+    """
+    WHY: Background task that drives the full analysis pipeline for one contract.
+    Called after the upload response is sent — user is not waiting on this.
+    Updates status at each stage so the frontend polling loop has something to show.
+
+    FLOW:
+      1. Update status → "analyzing"
+      2. Run ingestion: download + parse + chunk (step 7 — DONE)
+      3. TODO (steps 8–9): Helicone setup + LangChain extraction chain
+      4. TODO (step 10): risk scorer
+      5. TODO (step 11): summarizer
+      6. TODO (step 12): deadline extractor
+      7. Update status → "complete" with overall_risk set
+
+    Args:
+        contract_id:   UUID of the contract row
+        clerk_user_id: owner's Clerk user ID (for logging + future Helicone tags)
+        storage_path:  Supabase Storage path for the file
+        file_ext:      "pdf" or "docx"
+    """
+    from app.services.ingestion import ingest_contract  # local import avoids circular deps at module load
+
+    client = get_service_client()
+
+    # ── Stage 1: mark as analyzing ────────────────────────────────────────────
+    client.table("contracts").update({"status": "analyzing"}).eq("id", contract_id).execute()
+    logger.info(f"[pipeline] Starting analysis for contract_id={contract_id}")
+
+    try:
+        # ── Stage 2: ingest — download + parse + chunk ────────────────────────
+        result = await ingest_contract(contract_id, storage_path, file_ext)
+        logger.info(
+            f"[pipeline] Ingestion complete: contract_id={contract_id}, "
+            f"pages={result.page_count}, chunks={result.chunk_count}, chars={result.char_count}"
+        )
+
+        # ── Stage 3 (TODO step 9): extraction pipeline ────────────────────────
+        # from app.services.pipeline import run_extraction
+        # clauses = await run_extraction(result.chunks, contract_id, clerk_user_id)
+
+        # ── Stage 4 (TODO step 10): risk scorer ───────────────────────────────
+        # from app.services.scorer import score_clauses
+        # scored_clauses = score_clauses(clauses)
+
+        # ── Stage 5 (TODO step 11): summarizer ───────────────────────────────
+        # from app.services.summarizer import summarize_clauses
+        # await summarize_clauses(scored_clauses, contract_id, clerk_user_id)
+
+        # ── Stage 6 (TODO step 12): deadline extractor ───────────────────────
+        # from app.services.deadlines import extract_deadlines
+        # await extract_deadlines(result.chunks, contract_id)
+
+        # Placeholder: once the full pipeline is wired in, this updates to "complete"
+        # For now, ingestion succeeding is as far as we go — status stays "analyzing"
+        # so the frontend knows work is in progress but not yet finished.
+        logger.info(f"[pipeline] Ingestion done; extraction pipeline not yet wired (steps 8–12 pending)")
+
+    except Exception as e:
+        # Any unhandled exception marks the contract as "failed" so the user knows
+        # something went wrong and can try re-uploading rather than waiting forever.
+        logger.error(f"[pipeline] Analysis failed for contract_id={contract_id}: {e}", exc_info=True)
+        client.table("contracts").update({"status": "failed"}).eq("id", contract_id).execute()
+
+
+# ── SUMMARY ───────────────────────────────────────────────────────────────────
+# SUMMARY: 4 endpoints — POST /upload, GET /, GET /{id}, DELETE /{id}.
+#          Every endpoint requires a valid Clerk JWT via Depends(get_current_user_id).
+#          Data isolation enforced by filtering on clerk_user_id in every query.
+# TO TEST: Use /docs (localhost:8000/docs) — click the lock icon, paste a Clerk JWT.
+#          POST /upload with a real PDF — should return 201 with status="processing".
+#          GET / — should return the uploaded contract.
+#          DELETE /{id} — should return 204, contract should be gone from GET /.
+# NEXT:    services/pipeline.py (step 9) — LangChain extraction chain that iterates result.chunks
