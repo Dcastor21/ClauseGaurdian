@@ -3,7 +3,7 @@
 # ── IMPORTS ───────────────────────────────────────────────────────────────────
 import logging
 from contextlib import asynccontextmanager        # modern startup/shutdown pattern (replaces @app.on_event)
-from fastapi import FastAPI                        # the web framework
+from fastapi import FastAPI, Request              # the web framework
 from fastapi.middleware.cors import CORSMiddleware # allow the Next.js frontend to call this API across origins
 
 from app.config import settings                    # centralized env vars

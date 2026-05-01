@@ -10,6 +10,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials  # extract
 logger = logging.getLogger(__name__)
 
 
+
 # ── TOKEN EXTRACTOR ───────────────────────────────────────────────────────────
 # HTTPBearer parses the "Authorization: Bearer <token>" header.
 # auto_error=True makes FastAPI return HTTP 403 immediately if the header is absent,
