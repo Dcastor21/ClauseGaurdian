@@ -1,12 +1,12 @@
 from unittest.mock import MagicMock, patch
 
 import app.middleware.clerk_auth as auth_mod
-from conftest import TEST_USER_ID, make_jwt
+from tests.helpers import TEST_USER_ID, make_jwt
 
 
-def test_no_auth_header_returns_403(auth_client):
+def test_no_auth_header_returns_401(auth_client):
     resp = auth_client.get("/protected")
-    assert resp.status_code == 403
+    assert resp.status_code == 401
 
 
 def test_valid_jwt_returns_user_id(auth_client):

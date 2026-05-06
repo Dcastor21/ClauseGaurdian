@@ -18,7 +18,7 @@ ALLOWED_MIME_TYPES = {
     "application/pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 }
-MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024   # 10 MB — matches Supabase Storage bucket limit
+MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024   # 20 MB — matches Supabase Storage bucket limit
 
 # Extension map: MIME type → file extension used in the Storage path
 MIME_TO_EXT = {

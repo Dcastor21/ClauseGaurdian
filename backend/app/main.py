@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import webhooks
+from app.routers import contracts, webhooks
 
 settings = get_settings()
 
@@ -42,6 +42,7 @@ app.add_middleware(
 
 
 app.include_router(webhooks.router, prefix="/webhooks", tags=["Webhooks"])
+app.include_router(contracts.router, prefix="/api/v1/contracts", tags=["Contracts"])
 
 
 @app.get("/health", tags=["Ops"])

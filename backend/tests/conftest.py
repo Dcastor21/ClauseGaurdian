@@ -1,8 +1,4 @@
-import base64
-import hashlib
-import hmac
 import os
-import time
 from unittest.mock import MagicMock
 
 # Must come before any app import — get_settings() reads these at import time
@@ -48,7 +44,7 @@ def main_client():
 
 @pytest.fixture
 def auth_client(monkeypatch):
-    mock_jwks = _mock_jwks_for(_PUBLIC_KEY)
+    mock_jwks = _mock_jwks_for(PUBLIC_KEY)
     monkeypatch.setattr(
         "app.middleware.clerk_auth._get_jwks_client", lambda url: mock_jwks
     )
@@ -76,6 +72,28 @@ def mock_supabase(monkeypatch):
 
 @pytest.fixture
 def webhook_client(mock_supabase):
+    from app.main import app
+
+    with TestClient(app) as c:
+        yield c
+
+
+@pytest.fixture
+def mock_contracts_supabase(monkeypatch):
+    mock_client = MagicMock()
+    monkeypatch.setattr("app.routers.contracts.get_service_client", lambda: mock_client)
+    return mock_client
+
+
+@pytest.fixture
+def contracts_client(monkeypatch, mock_contracts_supabase):
+    mock_jwks = _mock_jwks_for(PUBLIC_KEY)
+    monkeypatch.setattr("app.middleware.clerk_auth._get_jwks_client", lambda url: mock_jwks)
+
+    async def noop_pipeline(*args, **kwargs):
+        pass
+    monkeypatch.setattr("app.routers.contracts._run_analysis_pipeline", noop_pipeline)
+
     from app.main import app
 
     with TestClient(app) as c:

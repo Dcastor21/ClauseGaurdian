@@ -1,6 +1,6 @@
 import json
 
-from conftest import make_svix_headers
+from tests.helpers import make_svix_headers
 
 _USER_CREATED = {
     "type": "user.created",

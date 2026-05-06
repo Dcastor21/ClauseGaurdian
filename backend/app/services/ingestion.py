@@ -104,20 +104,21 @@ async def ingest_contract(
     logger.info(f"[ingestion] Extracted {len(page_texts)} pages, {total_chars} chars from contract_id={contract_id}")
 
     # Step 3 — Wrap each page as a LangChain Document with page metadata
-    # WHY: LangChain's splitter preserves metadata on each chunk it produces from a Document.
-    # This means every chunk inherits the page number it came from — critical for page_ref in clauses.
     raw_docs = [
         Document(
             page_content=text,
             metadata={
-                "page": page_num,           # 1-indexed; 1 for all DOCX sections (not page-aware)
+                "page": page_num,
                 "source": storage_path,
                 "contract_id": contract_id,
             },
         )
         for page_num, text in enumerate(page_texts, start=1)
-        if text.strip()  # skip blank pages (common in scanned PDFs with separators)
+        if text.strip()
     ]
+
+    if not raw_docs:
+        raise RuntimeError(f"No text extracted from contract_id={contract_id}. File may be scanned/image-only.")
 
     # Step 4 — Chunk into 1000-token pieces with 200-token overlap
     chunks = _chunk_documents(raw_docs)
