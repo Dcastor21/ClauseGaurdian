@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.routers import contracts, webhooks
+from app.scheduler import shutdown_scheduler, start_scheduler
 
 settings = get_settings()
 
@@ -17,7 +18,9 @@ logging.basicConfig(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    start_scheduler()
     yield
+    shutdown_scheduler()
 
 
 app = FastAPI(

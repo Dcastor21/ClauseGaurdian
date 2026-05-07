@@ -328,6 +328,8 @@ async def _run_analysis_pipeline(
     storage_path: str,
     file_ext: str,
 ) -> None:
+    from app.services.alerts import send_push_alert
+    from app.services.deadlines import extract_deadlines
     from app.services.ingestion import ingest_contract
     from app.services.pipeline import run_extraction
     from app.services.scorer import compute_overall_risk, score_clauses
@@ -354,9 +356,50 @@ async def _run_analysis_pipeline(
         await summarize_clauses(scored, contract_id, clerk_user_id)
         logger.info(f"[pipeline] Summarization complete for contract_id={contract_id}")
 
+        try:
+            await extract_deadlines(result.chunks, contract_id)
+            logger.info(f"[pipeline] Deadline extraction complete for contract_id={contract_id}")
+        except Exception as e:
+            logger.warning(f"[pipeline] Deadline extraction failed for contract_id={contract_id}: {e}")
+
+        try:
+            await _dispatch_push_alerts(client, scored, contract_id, clerk_user_id, send_push_alert)
+        except Exception as e:
+            logger.warning(f"[pipeline] Push alert dispatch failed for contract_id={contract_id}: {e}")
+
         client.table("contracts").update({"status": "complete", "overall_risk": overall_risk}).eq("id", contract_id).execute()
         logger.info(f"[pipeline] Complete: contract_id={contract_id}")
 
     except Exception as e:
         logger.error(f"[pipeline] Analysis failed for contract_id={contract_id}: {e}", exc_info=True)
         client.table("contracts").update({"status": "failed"}).eq("id", contract_id).execute()
+
+
+async def _dispatch_push_alerts(client, scored, contract_id, clerk_user_id, send_push_alert_fn) -> None:
+    high_clauses = [c for c in scored if c.severity in ("critical", "high")]
+    if not high_clauses:
+        return
+
+    try:
+        user_resp = (
+            client.table("users")
+            .select("alert_preferences")
+            .eq("clerk_user_id", clerk_user_id)
+            .single()
+            .execute()
+        )
+        prefs = ((user_resp.data or {}).get("alert_preferences")) or {}
+    except Exception:
+        return
+
+    if not prefs.get("push", True):
+        return
+
+    clause_types = ", ".join(c.clause_type for c in high_clauses[:3])
+    suffix = f" (+{len(high_clauses) - 3} more)" if len(high_clauses) > 3 else ""
+    await send_push_alert_fn(
+        title="High-risk clauses detected",
+        message=f"{len(high_clauses)} critical/high clause(s) found: {clause_types}{suffix}",
+        contract_id=contract_id,
+        clerk_user_id=clerk_user_id,
+    )
