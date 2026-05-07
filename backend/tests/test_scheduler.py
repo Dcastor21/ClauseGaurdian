@@ -61,9 +61,10 @@ async def test_check_deadlines_filters_by_pending_status(mock_sched_supabase, mo
 
     await check_deadlines()
 
-    # Verify alert_status=pending is in the chain of eq() calls
-    eq_calls = [str(c) for c in chain.eq.call_args_list]
-    assert any("pending" in c for c in eq_calls)
+    # .select().eq("alert_type", ...).eq("alert_status", "pending")...
+    # second eq is on chain.eq.return_value
+    second_eq_calls = chain.eq.return_value.eq.call_args_list
+    assert any(c.args == ("alert_status", "pending") for c in second_eq_calls)
 
 
 # --- _process_deadline_alert ---

@@ -160,41 +160,53 @@ async def upload_contract(
 # ── LIST ──────────────────────────────────────────────────────────────────────
 @router.get("/", response_model=list[ContractRead])
 async def list_contracts(
+    search: str | None = None,
+    risk: str | None = None,
     clerk_user_id: str = Depends(get_current_user_id),
 ) -> list[ContractRead]:
-    """
-    WHY: Powers the main dashboard table — returns all contracts for the signed-in user,
-    sorted newest first. The frontend uses status and overall_risk to render badges.
-
-    FLOW:
-      1. Query contracts table filtered by clerk_user_id
-      2. Order by created_at descending (newest first)
-      3. Return list of ContractRead
-
-    Args:
-        clerk_user_id: injected from the verified Clerk JWT
-
-    Returns:
-        list[ContractRead]: all contracts owned by this user, newest first
-
-    Raises:
-        HTTPException 502: DB query failed
-    """
     client = get_service_client()
 
     try:
-        response = (
+        query = (
             client.table("contracts")
             .select("*")
-            .eq("clerk_user_id", clerk_user_id)   # enforce data isolation in application layer
-            .order("created_at", desc=True)
-            .execute()
+            .eq("clerk_user_id", clerk_user_id)
         )
+        if risk:
+            query = query.eq("overall_risk", risk)
+        if search:
+            query = query.ilike("name", f"%{search}%")
+        query = query.order("created_at", desc=True)
+        response = query.execute()
+        contracts: dict[str, dict] = {row["id"]: row for row in response.data}
+
+        if search:
+            clause_resp = (
+                client.table("clauses")
+                .select("contract_id")
+                .ilike("raw_text", f"%{search}%")
+                .execute()
+            )
+            clause_ids = list({r["contract_id"] for r in clause_resp.data})
+            if clause_ids:
+                cq = (
+                    client.table("contracts")
+                    .select("*")
+                    .eq("clerk_user_id", clerk_user_id)
+                    .in_("id", clause_ids)
+                )
+                if risk:
+                    cq = cq.eq("overall_risk", risk)
+                for row in cq.execute().data:
+                    contracts.setdefault(row["id"], row)
+
+        return [
+            ContractRead.model_validate(row)
+            for row in sorted(contracts.values(), key=lambda x: x.get("created_at", ""), reverse=True)
+        ]
     except Exception as e:
         logger.error(f"Failed to list contracts for user={clerk_user_id}: {e}", exc_info=True)
         raise HTTPException(status_code=502, detail="Failed to retrieve contracts.")
-
-    return [ContractRead.model_validate(row) for row in response.data]
 
 
 # ── GET ───────────────────────────────────────────────────────────────────────

@@ -6,6 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.routers import contracts, webhooks
+from app.routers.clauses import router as clauses_router
+from app.routers.deadlines import router as deadlines_router
 from app.scheduler import shutdown_scheduler, start_scheduler
 
 settings = get_settings()
@@ -46,6 +48,8 @@ app.add_middleware(
 
 app.include_router(webhooks.router, prefix="/webhooks", tags=["Webhooks"])
 app.include_router(contracts.router, prefix="/api/v1/contracts", tags=["Contracts"])
+app.include_router(clauses_router, prefix="/api/v1/clauses", tags=["Clauses"])
+app.include_router(deadlines_router, prefix="/api/v1/deadlines", tags=["Deadlines"])
 
 
 @app.get("/health", tags=["Ops"])

@@ -1,0 +1,21 @@
+# Secrets
+.env.local
+.env.*.local
+!.env.local.example
+
+# Clerk local config (may contain dev secrets)
+/.clerk/
+
+# Next.js build output
+.next/
+out/
+
+# Dependencies
+node_modules/
+
+# Vercel
+.vercel
+
+# TypeScript incremental build info
+*.tsbuildinfo
+next-env.d.ts
