@@ -330,6 +330,8 @@ async def _run_analysis_pipeline(
 ) -> None:
     from app.services.ingestion import ingest_contract
     from app.services.pipeline import run_extraction
+    from app.services.scorer import compute_overall_risk, score_clauses
+    from app.services.summarizer import summarize_clauses
 
     client = get_service_client()
     client.table("contracts").update({"status": "analyzing"}).eq("id", contract_id).execute()
@@ -345,7 +347,14 @@ async def _run_analysis_pipeline(
         clauses = await run_extraction(result.chunks, contract_id, clerk_user_id)
         logger.info(f"[pipeline] Extracted {len(clauses)} clauses for contract_id={contract_id}")
 
-        client.table("contracts").update({"status": "complete"}).eq("id", contract_id).execute()
+        scored = await score_clauses(clauses, contract_id)
+        overall_risk = compute_overall_risk(scored)
+        logger.info(f"[pipeline] Scored {len(scored)} clauses, overall_risk={overall_risk} for contract_id={contract_id}")
+
+        await summarize_clauses(scored, contract_id, clerk_user_id)
+        logger.info(f"[pipeline] Summarization complete for contract_id={contract_id}")
+
+        client.table("contracts").update({"status": "complete", "overall_risk": overall_risk}).eq("id", contract_id).execute()
         logger.info(f"[pipeline] Complete: contract_id={contract_id}")
 
     except Exception as e:
