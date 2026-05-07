@@ -328,76 +328,26 @@ async def _run_analysis_pipeline(
     storage_path: str,
     file_ext: str,
 ) -> None:
-    """
-    WHY: Background task that drives the full analysis pipeline for one contract.
-    Called after the upload response is sent — user is not waiting on this.
-    Updates status at each stage so the frontend polling loop has something to show.
-
-    FLOW:
-      1. Update status → "analyzing"
-      2. Run ingestion: download + parse + chunk (step 7 — DONE)
-      3. TODO (steps 8–9): Helicone setup + LangChain extraction chain
-      4. TODO (step 10): risk scorer
-      5. TODO (step 11): summarizer
-      6. TODO (step 12): deadline extractor
-      7. Update status → "complete" with overall_risk set
-
-    Args:
-        contract_id:   UUID of the contract row
-        clerk_user_id: owner's Clerk user ID (for logging + future Helicone tags)
-        storage_path:  Supabase Storage path for the file
-        file_ext:      "pdf" or "docx"
-    """
-    from app.services.ingestion import ingest_contract  # local import avoids circular deps at module load
+    from app.services.ingestion import ingest_contract
+    from app.services.pipeline import run_extraction
 
     client = get_service_client()
-
-    # ── Stage 1: mark as analyzing ────────────────────────────────────────────
     client.table("contracts").update({"status": "analyzing"}).eq("id", contract_id).execute()
     logger.info(f"[pipeline] Starting analysis for contract_id={contract_id}")
 
     try:
-        # ── Stage 2: ingest — download + parse + chunk ────────────────────────
         result = await ingest_contract(contract_id, storage_path, file_ext)
         logger.info(
             f"[pipeline] Ingestion complete: contract_id={contract_id}, "
-            f"pages={result.page_count}, chunks={result.chunk_count}, chars={result.char_count}"
+            f"pages={result.page_count}, chunks={result.chunk_count}"
         )
 
-        # ── Stage 3 (TODO step 9): extraction pipeline ────────────────────────
-        # from app.services.pipeline import run_extraction
-        # clauses = await run_extraction(result.chunks, contract_id, clerk_user_id)
+        clauses = await run_extraction(result.chunks, contract_id, clerk_user_id)
+        logger.info(f"[pipeline] Extracted {len(clauses)} clauses for contract_id={contract_id}")
 
-        # ── Stage 4 (TODO step 10): risk scorer ───────────────────────────────
-        # from app.services.scorer import score_clauses
-        # scored_clauses = score_clauses(clauses)
-
-        # ── Stage 5 (TODO step 11): summarizer ───────────────────────────────
-        # from app.services.summarizer import summarize_clauses
-        # await summarize_clauses(scored_clauses, contract_id, clerk_user_id)
-
-        # ── Stage 6 (TODO step 12): deadline extractor ───────────────────────
-        # from app.services.deadlines import extract_deadlines
-        # await extract_deadlines(result.chunks, contract_id)
-
-        # Placeholder: once the full pipeline is wired in, this updates to "complete"
-        # For now, ingestion succeeding is as far as we go — status stays "analyzing"
-        # so the frontend knows work is in progress but not yet finished.
-        logger.info(f"[pipeline] Ingestion done; extraction pipeline not yet wired (steps 8–12 pending)")
+        client.table("contracts").update({"status": "complete"}).eq("id", contract_id).execute()
+        logger.info(f"[pipeline] Complete: contract_id={contract_id}")
 
     except Exception as e:
-        # Any unhandled exception marks the contract as "failed" so the user knows
-        # something went wrong and can try re-uploading rather than waiting forever.
         logger.error(f"[pipeline] Analysis failed for contract_id={contract_id}: {e}", exc_info=True)
         client.table("contracts").update({"status": "failed"}).eq("id", contract_id).execute()
-
-
-# ── SUMMARY ───────────────────────────────────────────────────────────────────
-# SUMMARY: 4 endpoints — POST /upload, GET /, GET /{id}, DELETE /{id}.
-#          Every endpoint requires a valid Clerk JWT via Depends(get_current_user_id).
-#          Data isolation enforced by filtering on clerk_user_id in every query.
-# TO TEST: Use /docs (localhost:8000/docs) — click the lock icon, paste a Clerk JWT.
-#          POST /upload with a real PDF — should return 201 with status="processing".
-#          GET / — should return the uploaded contract.
-#          DELETE /{id} — should return 204, contract should be gone from GET /.
-# NEXT:    services/pipeline.py (step 9) — LangChain extraction chain that iterates result.chunks
