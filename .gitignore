@@ -9,7 +9,7 @@ Thumbs.db
 *.swo
 
 # Claude Code internal
-.clauude/
+.claude/
 
 # Secrets — never commit real env files
 .env

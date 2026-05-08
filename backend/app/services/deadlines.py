@@ -62,7 +62,7 @@ def _write_deadline_rows(client, contract_id: str, deadline_date: str) -> None:
         {
             "contract_id": contract_id,
             "deadline_date": deadline_date,
-            "alert_type": window,
+            "alert_window": window,
             "alert_status": "pending",
         }
         for window in ALERT_WINDOWS
@@ -93,9 +93,9 @@ def _parse_response(content: str) -> list[dict]:
 
 def _build_llm(contract_id: str, settings) -> ChatOpenAI:
     return ChatOpenAI(
-        model="anthropic/claude-3-haiku",
+        model=settings.LLM_MODEL,
         openai_api_key=settings.OPENROUTER_API_KEY,
-        openai_api_base="https://oai.helicone.ai/v1",
+        openai_api_base=settings.HELICONE_BASE_URL,
         default_headers={
             "Helicone-Auth": f"Bearer {settings.HELICONE_API_KEY}",
             "Helicone-Property-stage": "deadline_extraction",

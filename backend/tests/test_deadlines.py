@@ -61,8 +61,8 @@ async def test_extract_deadlines_writes_four_rows_per_date(mock_deadlines_llm, m
     mock_deadlines_supabase.table.assert_called_with("deadlines")
     insert_call = mock_deadlines_supabase.table.return_value.insert.call_args[0][0]
     assert len(insert_call) == len(ALERT_WINDOWS)
-    alert_types = {row["alert_type"] for row in insert_call}
-    assert alert_types == set(ALERT_WINDOWS)
+    alert_windows = {row["alert_window"] for row in insert_call}
+    assert alert_windows == set(ALERT_WINDOWS)
 
 
 async def test_extract_deadlines_all_rows_have_correct_contract_id(mock_deadlines_llm, mock_deadlines_supabase):

@@ -50,6 +50,8 @@ async def run_extraction(
 
     seen_hashes: set[str] = set()
     all_clauses: list[ClauseCreate] = []
+    total_chunks = len(chunks)
+    failed_chunks = 0
 
     for chunk in chunks:
         chunk_index = chunk.metadata.get("chunk_index", "?")
@@ -61,7 +63,8 @@ async def run_extraction(
             logger.error(
                 f"[extraction] LLM error on chunk={chunk_index}, contract={contract_id}: {e}"
             )
-            raise
+            failed_chunks += 1
+            continue
 
         for raw in raw_clauses:
             clause_type = raw.get("clause_type", "").strip()
@@ -85,8 +88,19 @@ async def run_extraction(
                 )
             )
 
+    if failed_chunks > total_chunks / 2:
+        raise RuntimeError(
+            f"[extraction] Too many chunk failures ({failed_chunks}/{total_chunks}) "
+            f"for contract={contract_id} — marking as failed"
+        )
+
     if all_clauses:
         _write_clauses(all_clauses)
+        if failed_chunks:
+            logger.warning(
+                f"[extraction] Partial extraction: {failed_chunks}/{total_chunks} chunks failed "
+                f"for contract={contract_id}"
+            )
         logger.info(f"[extraction] Wrote {len(all_clauses)} clauses for contract={contract_id}")
     else:
         logger.info(f"[extraction] No clauses found in contract={contract_id}")
@@ -96,9 +110,9 @@ async def run_extraction(
 
 def _build_llm(contract_id: str, settings) -> ChatOpenAI:
     return ChatOpenAI(
-        model="anthropic/claude-3-haiku",
+        model=settings.LLM_MODEL,
         openai_api_key=settings.OPENROUTER_API_KEY,
-        openai_api_base="https://oai.helicone.ai/v1",
+        openai_api_base=settings.HELICONE_BASE_URL,
         default_headers={
             "Helicone-Auth": f"Bearer {settings.HELICONE_API_KEY}",
             "Helicone-Property-stage": "extraction",

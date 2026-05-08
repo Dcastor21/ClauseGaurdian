@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, DragEvent, ChangeEvent } from 'react'
+import { useState, useRef, useEffect, DragEvent, ChangeEvent } from 'react'
 import { Upload, X, CheckCircle, Loader2 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { uploadContract, getContract } from '../lib/api'
@@ -14,7 +14,7 @@ interface Props {
 }
 
 const ALLOWED_TYPES = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
-const MAX_BYTES = 20 * 1024 * 1024
+const MAX_BYTES = 10 * 1024 * 1024
 
 export function UploadModal({ getToken, onComplete, onClose }: Props) {
   const [step, setStep] = useState<Step>('idle')
@@ -30,6 +30,10 @@ export function UploadModal({ getToken, onComplete, onClose }: Props) {
     }
   }
 
+  // Clear the poll interval if the modal is closed mid-upload (e.g. user presses Escape).
+  // Without this the interval fires forever after the component unmounts.
+  useEffect(() => () => stopPolling(), [])
+
   async function handleFile(file: File) {
     setError(null)
     if (!ALLOWED_TYPES.includes(file.type)) {
@@ -37,7 +41,7 @@ export function UploadModal({ getToken, onComplete, onClose }: Props) {
       return
     }
     if (file.size > MAX_BYTES) {
-      setError('File must be under 20 MB.')
+      setError('File must be under 10 MB.')
       return
     }
 
@@ -124,7 +128,7 @@ export function UploadModal({ getToken, onComplete, onClose }: Props) {
               Drag & drop a PDF or DOCX, or{' '}
               <span className="text-accent font-medium">browse</span>
             </p>
-            <p className="text-xs text-gray-400">Max 20 MB</p>
+            <p className="text-xs text-gray-400">Max 10 MB</p>
             <input
               ref={inputRef}
               type="file"

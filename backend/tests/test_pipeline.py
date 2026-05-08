@@ -144,12 +144,13 @@ async def test_extraction_db_row_contains_contract_id(mock_llm, mock_pipeline_su
     assert insert_call[0]["contract_id"] == CONTRACT_ID
 
 
-async def test_extraction_llm_error_propagates(mock_llm, mock_pipeline_supabase):
+async def test_extraction_llm_error_on_majority_raises(mock_llm, mock_pipeline_supabase):
+    """If >50% of chunks fail, a RuntimeError is raised after the loop."""
     mock_llm.ainvoke.side_effect = Exception("OpenRouter rate limit exceeded")
 
     from app.services.pipeline import run_extraction
 
-    with pytest.raises(Exception, match="OpenRouter rate limit exceeded"):
+    with pytest.raises(RuntimeError, match="Too many chunk failures"):
         await run_extraction([_chunk("text")], CONTRACT_ID, USER_ID)
 
 
@@ -158,10 +159,32 @@ async def test_extraction_llm_error_does_not_write_to_db(mock_llm, mock_pipeline
 
     from app.services.pipeline import run_extraction
 
-    with pytest.raises(Exception):
+    with pytest.raises(RuntimeError):
         await run_extraction([_chunk("text")], CONTRACT_ID, USER_ID)
 
     mock_pipeline_supabase.table.assert_not_called()
+
+
+async def test_extraction_partial_failure_writes_successful_chunks(mock_llm, mock_pipeline_supabase):
+    """Chunk 2 of 5 fails — clauses from the other 4 chunks are still written."""
+    good_clause = {"clause_type": "governing_law", "raw_text": "Governed by California law."}
+
+    def llm_side_effect(messages):
+        call_n = mock_llm.ainvoke.call_count
+        if call_n == 2:
+            raise Exception("LLM error on chunk 2")
+        return _llm_resp([good_clause])
+
+    mock_llm.ainvoke.side_effect = llm_side_effect
+
+    from app.services.pipeline import run_extraction
+
+    chunks = [_chunk(f"text {i}", chunk_index=i) for i in range(5)]
+    result = await run_extraction(chunks, CONTRACT_ID, USER_ID)
+
+    # 4 chunks succeeded — the good_clause is deduplicated to 1 unique clause
+    assert len(result) == 1
+    mock_pipeline_supabase.table.assert_called_with("clauses")
 
 
 async def test_extraction_skips_clauses_missing_type_or_text(mock_llm, mock_pipeline_supabase):

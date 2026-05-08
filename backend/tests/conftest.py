@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 # Must come before any app import — get_settings() reads these at import time
 os.environ.setdefault("CLERK_SECRET_KEY", "sk_test_fake")
 os.environ.setdefault("CLERK_WEBHOOK_SECRET", "whsec_test_fake")
+os.environ.setdefault("CLERK_JWT_ISSUER", "https://test.clerk.dev")
 os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
 os.environ.setdefault("SUPABASE_ANON_KEY", "test-anon-key")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-key")

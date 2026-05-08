@@ -67,9 +67,9 @@ async def _llm_summarize(
     settings,
 ) -> tuple[str, str]:
     llm = ChatOpenAI(
-        model="anthropic/claude-3-haiku",
+        model=settings.LLM_MODEL,
         openai_api_key=settings.OPENROUTER_API_KEY,
-        openai_api_base="https://oai.helicone.ai/v1",
+        openai_api_base=settings.HELICONE_BASE_URL,
         default_headers={
             "Helicone-Auth": f"Bearer {settings.HELICONE_API_KEY}",
             "Helicone-Property-stage": "summarization",

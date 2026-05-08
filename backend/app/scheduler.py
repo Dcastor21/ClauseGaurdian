@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 _scheduler = AsyncIOScheduler()
 
-# Maps alert_type value in the deadlines table to the days-before threshold
+# Maps alert_window value in the deadlines table to the days-before threshold
 ALERT_WINDOWS: dict[str, int] = {
     "30-day": 30,
     "14-day": 14,
@@ -35,31 +35,36 @@ async def check_deadlines() -> None:
     now = datetime.now(timezone.utc)
     logger.info(f"[scheduler] Running deadline check at {now.isoformat()}")
 
-    for alert_type, days in ALERT_WINDOWS.items():
-        window_cutoff = (now + timedelta(days=days)).isoformat()
+    for alert_window, days in ALERT_WINDOWS.items():
+        # Query only the 1-day band for this window — e.g. "7-day" matches
+        # deadlines between now+6d and now+7d, not now+0d to now+7d.
+        # The old cumulative approach sent 3 emails for a deadline 7 days away
+        # (matching the 30-day, 14-day, and 7-day queries simultaneously).
+        lower = (now + timedelta(days=days - 1)).isoformat()
+        upper = (now + timedelta(days=days)).isoformat()
 
         try:
             response = (
                 client.table("deadlines")
                 .select("id, deadline_date, contract_id, contracts(clerk_user_id, name)")
-                .eq("alert_type", alert_type)
+                .eq("alert_window", alert_window)
                 .eq("alert_status", "pending")
-                .lte("deadline_date", window_cutoff)
-                .gte("deadline_date", now.isoformat())
+                .gte("deadline_date", lower)
+                .lte("deadline_date", upper)
                 .execute()
             )
         except Exception as e:
-            logger.error(f"[scheduler] Query failed for window={alert_type}: {e}")
+            logger.error(f"[scheduler] Query failed for window={alert_window}: {e}")
             continue
 
         for row in response.data:
-            await _process_deadline_alert(client, row, alert_type, days)
+            await _process_deadline_alert(client, row, alert_window, days)
 
 
 async def _process_deadline_alert(
     client,
     row: dict,
-    alert_type: str,
+    alert_window: str,
     days: int,
 ) -> None:
     deadline_id = row["id"]

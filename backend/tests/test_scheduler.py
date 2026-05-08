@@ -8,7 +8,7 @@ USER_ID = "user_scheduler_test"
 
 
 def _deadline_row(
-    alert_type: str = "7-day",
+    alert_window: str = "7-day",
     deadline_date: str = "2025-12-31",
     clerk_user_id: str = USER_ID,
     contract_name: str = "Test Contract",
@@ -17,7 +17,7 @@ def _deadline_row(
         "id": DEADLINE_ID,
         "deadline_date": deadline_date,
         "contract_id": CONTRACT_ID,
-        "alert_type": alert_type,
+        "alert_window": alert_window,
         "contracts": {"clerk_user_id": clerk_user_id, "name": contract_name},
     }
 
@@ -45,7 +45,7 @@ def mock_sched_email(monkeypatch):
 async def test_check_deadlines_queries_all_four_windows(mock_sched_supabase, mock_sched_email):
     from app.scheduler import ALERT_WINDOWS, check_deadlines
 
-    mock_sched_supabase.table.return_value.select.return_value.eq.return_value.eq.return_value.lte.return_value.gte.return_value.execute.return_value.data = []
+    mock_sched_supabase.table.return_value.select.return_value.eq.return_value.eq.return_value.gte.return_value.lte.return_value.execute.return_value.data = []
 
     await check_deadlines()
 
@@ -57,14 +57,47 @@ async def test_check_deadlines_filters_by_pending_status(mock_sched_supabase, mo
     from app.scheduler import check_deadlines
 
     chain = mock_sched_supabase.table.return_value.select.return_value
-    chain.eq.return_value.eq.return_value.lte.return_value.gte.return_value.execute.return_value.data = []
+    chain.eq.return_value.eq.return_value.gte.return_value.lte.return_value.execute.return_value.data = []
 
     await check_deadlines()
 
-    # .select().eq("alert_type", ...).eq("alert_status", "pending")...
-    # second eq is on chain.eq.return_value
+    # .select().eq("alert_window", ...).eq("alert_status", "pending")...
     second_eq_calls = chain.eq.return_value.eq.call_args_list
     assert any(c.args == ("alert_status", "pending") for c in second_eq_calls)
+
+
+async def test_check_deadlines_exactly_one_email_for_7_day_band(monkeypatch, mock_sched_email):
+    """A deadline with alert_window='7-day' fires exactly one email — not three.
+
+    The old cumulative query (lte=now+7d, gte=now) matched the 30/14/7-day rows
+    simultaneously. The fix uses a 1-day band per window so only the 7-day query
+    returns the row.
+    """
+    from app.scheduler import check_deadlines
+
+    windows_order = ["30-day", "14-day", "7-day", "1-day"]
+    deadline_call_count = [0]
+
+    def make_table_mock(table_name: str):
+        m = MagicMock()
+        if table_name == "deadlines":
+            idx = deadline_call_count[0]
+            deadline_call_count[0] += 1
+            if idx < len(windows_order):
+                window = windows_order[idx]
+                data = [_deadline_row(alert_window=window)] if window == "7-day" else []
+                m.select.return_value.eq.return_value.eq.return_value.gte.return_value.lte.return_value.execute.return_value.data = data
+        elif table_name == "users":
+            m.select.return_value.eq.return_value.single.return_value.execute.return_value.data = _user_row()
+        return m
+
+    client = MagicMock()
+    client.table.side_effect = make_table_mock
+    monkeypatch.setattr("app.scheduler.get_service_client", lambda: client)
+
+    await check_deadlines()
+
+    assert mock_sched_email.call_count == 1
 
 
 # --- _process_deadline_alert ---

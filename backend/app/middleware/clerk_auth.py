@@ -7,7 +7,7 @@ from jwt import PyJWKClient                       # handles JWKS fetching and ke
 from fastapi import HTTPException, Depends        # Depends = FastAPI's dependency injection
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials  # extracts Bearer token from header
 
-from app.config import settings                   # CLERK_JWT_ISSUER for issuer pinning
+from app.config import get_settings               # CLERK_JWT_ISSUER for issuer pinning
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ def _get_jwks_client(jwks_url: str) -> PyJWKClient:
 # ── PRECOMPUTED ISSUER & JWKS URL ─────────────────────────────────────────────
 # Strip any trailing slash so string equality with payload["iss"] is reliable.
 # Clerk's `iss` claim is always the Frontend API URL with NO trailing slash.
-_EXPECTED_ISSUER = settings.CLERK_JWT_ISSUER.rstrip("/")
+_EXPECTED_ISSUER = get_settings().CLERK_JWT_ISSUER.rstrip("/")
 _JWKS_URL = f"{_EXPECTED_ISSUER}/.well-known/jwks.json"
 
 

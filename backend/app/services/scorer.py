@@ -50,7 +50,7 @@ async def score_clauses(clauses: list[ClauseCreate], contract_id: str) -> list[C
         try:
             client.table("clauses").update({"severity": new_severity}).eq(
                 "contract_id", contract_id
-            ).eq("clause_type", clause.clause_type).execute()
+            ).eq("raw_text", clause.raw_text).execute()
         except Exception as e:
             logger.warning(f"[scorer] Failed to update severity in DB for clause_type={clause.clause_type}: {e}")
 
@@ -81,9 +81,9 @@ async def _llm_score_severity(
     raw_text: str, contract_id: str, clause_type: str, settings
 ) -> str:
     llm = ChatOpenAI(
-        model="anthropic/claude-3-haiku",
+        model=settings.LLM_MODEL,
         openai_api_key=settings.OPENROUTER_API_KEY,
-        openai_api_base="https://oai.helicone.ai/v1",
+        openai_api_base=settings.HELICONE_BASE_URL,
         default_headers={
             "Helicone-Auth": f"Bearer {settings.HELICONE_API_KEY}",
             "Helicone-Property-stage": "scoring",

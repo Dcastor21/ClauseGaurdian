@@ -1,5 +1,9 @@
 from unittest.mock import MagicMock, patch
 
+import pytest
+from fastapi import Depends, FastAPI
+from fastapi.testclient import TestClient
+
 import app.middleware.clerk_auth as auth_mod
 from tests.helpers import TEST_USER_ID, make_jwt
 
@@ -61,3 +65,24 @@ def test_different_issuers_get_separate_jwks_clients():
             assert mock_cls.call_count == 2
     finally:
         auth_mod._jwks_clients.clear()
+
+
+def test_rejects_token_with_wrong_issuer(monkeypatch):
+    """Forged issuer tokens are rejected before any JWKS network call."""
+    def _should_not_be_called(url: str):
+        raise AssertionError("_get_jwks_client was called — issuer pin did not fire first")
+
+    monkeypatch.setattr(auth_mod, "_get_jwks_client", _should_not_be_called)
+
+    test_app = FastAPI()
+
+    @test_app.get("/protected")
+    async def protected(user_id: str = Depends(auth_mod.get_current_user_id)):
+        return {"user_id": user_id}
+
+    token = make_jwt(iss="https://attacker.com")
+    with TestClient(test_app) as client:
+        resp = client.get("/protected", headers={"Authorization": f"Bearer {token}"})
+
+    assert resp.status_code == 401
+    assert "issuer" in resp.json()["detail"].lower()

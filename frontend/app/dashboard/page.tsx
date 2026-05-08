@@ -44,8 +44,11 @@ export default function DashboardPage() {
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  // fetchContracts never closes over search/risk — callers always pass them explicitly.
+  // Deps are [getToken] only so the function reference is stable across search/risk changes,
+  // which prevents the poll effect from restarting on every keystroke.
   const fetchContracts = useCallback(
-    async (q = search, r = risk) => {
+    async (q: string, r: string) => {
       const token = await getToken()
       if (!token) return
       try {
@@ -55,26 +58,27 @@ export default function DashboardPage() {
         // ignore transient errors
       }
     },
-    [getToken, search, risk],
+    [getToken],
   )
 
   useEffect(() => {
     if (!isLoaded) return
     if (!isSignedIn) { router.push('/sign-in'); return }
     setLoading(true)
-    fetchContracts().finally(() => setLoading(false))
+    fetchContracts(search, risk).finally(() => setLoading(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, isSignedIn, router, fetchContracts])
 
   // Auto-poll while any contract is still processing
   useEffect(() => {
     const hasActive = contracts.some((c) => c.status === 'processing' || c.status === 'analyzing')
     if (hasActive) {
-      pollTimer.current = setInterval(() => fetchContracts(), 5000)
+      pollTimer.current = setInterval(() => fetchContracts(search, risk), 5000)
     } else {
       if (pollTimer.current) { clearInterval(pollTimer.current); pollTimer.current = null }
     }
     return () => { if (pollTimer.current) clearInterval(pollTimer.current) }
-  }, [contracts, fetchContracts])
+  }, [contracts, fetchContracts, search, risk])
 
   function onSearchChange(val: string) {
     setSearch(val)
@@ -236,7 +240,7 @@ export default function DashboardPage() {
       {showUpload && (
         <UploadModal
           getToken={async () => getToken()}
-          onComplete={() => { fetchContracts(); setShowUpload(false) }}
+          onComplete={() => { fetchContracts(search, risk); setShowUpload(false) }}
           onClose={() => setShowUpload(false)}
         />
       )}

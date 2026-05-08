@@ -5,6 +5,7 @@ import logging
 import uuid                                          # generate contract UUID before upload (needed for storage path)
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
                                                      # BackgroundTasks: runs pipeline after response is sent
+from app.config import get_settings                  # settings singleton for upload limits
 from app.middleware.clerk_auth import get_current_user_id  # JWT dependency — injects clerk_user_id
 from app.db.supabase import get_service_client       # service client used for all backend DB ops
 from app.db.models import ContractRead, ContractCreate, ContractUpdate
@@ -18,7 +19,6 @@ ALLOWED_MIME_TYPES = {
     "application/pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 }
-MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024   # 20 MB — matches Supabase Storage bucket limit
 
 # Extension map: MIME type → file extension used in the Storage path
 MIME_TO_EXT = {
@@ -78,11 +78,14 @@ async def upload_contract(
     # We read the entire file into memory here. For files up to 10 MB this is fine.
     # Decision: streaming upload would be more memory-efficient but complicates
     # the size check; at 10 MB the simplicity tradeoff is worth it.
+    settings = get_settings()
     file_bytes = await file.read()
-    if len(file_bytes) > MAX_FILE_SIZE_BYTES:
+    max_bytes = settings.MAX_UPLOAD_BYTES
+    if len(file_bytes) > max_bytes:
+        max_mb = max_bytes // (1024 * 1024)
         raise HTTPException(
             status_code=413,
-            detail=f"File too large: {len(file_bytes) / 1024 / 1024:.1f} MB. Maximum is 10 MB.",
+            detail=f"File too large: {len(file_bytes) / 1024 / 1024:.1f} MB. Maximum is {max_mb} MB.",
         )
 
     # Step 3: Generate contract UUID now so we can use it in both the storage path and DB row

@@ -114,3 +114,30 @@ def test_unknown_event_type_returns_ok(webhook_client, mock_supabase):
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}
     mock_supabase.table.assert_not_called()
+
+
+# --- infrastructure error handling ---
+
+def test_user_created_supabase_down_returns_500(webhook_client, mock_supabase):
+    """If Supabase raises during user.created, the endpoint returns 500 so Clerk retries."""
+    mock_supabase.table.return_value.upsert.return_value.execute.side_effect = Exception("DB down")
+
+    resp = _post(webhook_client, _USER_CREATED)
+
+    assert resp.status_code == 500
+
+
+def test_user_created_missing_id_returns_200_no_db_write(webhook_client, mock_supabase):
+    """Missing id is a payload error — ack to Clerk (200), no DB write."""
+    payload = {
+        "type": "user.created",
+        "data": {
+            "id": "",
+            "primary_email_address_id": "email_001",
+            "email_addresses": [{"id": "email_001", "email_address": "test@example.com"}],
+        },
+    }
+    resp = _post(webhook_client, payload)
+
+    assert resp.status_code == 200
+    mock_supabase.table.assert_not_called()

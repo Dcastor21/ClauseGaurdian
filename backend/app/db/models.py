@@ -73,7 +73,7 @@ class ClauseRead(ClauseBase):
 
 class DeadlineBase(BaseModel):
     deadline_date: datetime
-    alert_type: str | None = None
+    alert_window: str | None = None
     alert_status: str = "pending"
 
 

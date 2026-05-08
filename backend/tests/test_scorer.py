@@ -74,11 +74,36 @@ async def test_score_clauses_unknown_type_updates_db(mock_scorer_llm, mock_score
     from app.services.scorer import score_clauses
 
     mock_scorer_llm.ainvoke.return_value = _llm_resp("critical")
-    await score_clauses([_clause("non_compete")], CONTRACT_ID)
+    await score_clauses([_clause("non_compete", raw_text="No competing for 2 years.")], CONTRACT_ID)
 
     mock_scorer_supabase.table.assert_called_with("clauses")
     update_call = mock_scorer_supabase.table.return_value.update.call_args[0][0]
     assert update_call["severity"] == "critical"
+    # Filter must use raw_text as the second .eq(), not clause_type
+    # Chain: .update({...}).eq("contract_id", ...).eq("raw_text", ...)
+    second_eq_calls = mock_scorer_supabase.table.return_value.update.return_value.eq.return_value.eq.call_args_list
+    filter_cols = [c.args[0] for c in second_eq_calls]
+    assert "raw_text" in filter_cols
+    assert "clause_type" not in filter_cols
+
+
+async def test_score_clauses_two_unknown_types_get_independent_severities(mock_scorer_llm, mock_scorer_supabase):
+    """Two distinct unknown-type clauses with the same clause_type get separate LLM calls."""
+    from app.services.scorer import score_clauses
+
+    mock_scorer_llm.ainvoke.side_effect = [
+        _llm_resp("critical"),
+        _llm_resp("low"),
+    ]
+    clauses = [
+        _clause("non_compete", raw_text="No competing for 2 years."),
+        _clause("non_compete", raw_text="Seller may not solicit customers for 1 year."),
+    ]
+    result = await score_clauses(clauses, CONTRACT_ID)
+
+    assert mock_scorer_llm.ainvoke.call_count == 2
+    assert result[0].severity == "critical"
+    assert result[1].severity == "low"
 
 
 async def test_score_clauses_empty_returns_empty(mock_scorer_llm, mock_scorer_supabase):

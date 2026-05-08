@@ -7,6 +7,14 @@ from app.db.supabase import get_service_client
 router = APIRouter()
 
 
+class _PayloadError(Exception):
+    """Bad data in the webhook payload — ack to Clerk (no retry needed)."""
+
+
+class _InfraError(Exception):
+    """Downstream infrastructure failure — return 500 so Clerk retries."""
+
+
 @router.post("/clerk", status_code=200)
 async def handle_clerk_webhook(
     request: Request,
@@ -33,12 +41,17 @@ async def handle_clerk_webhook(
     event_type = event.get("type", "")
     data = event.get("data", {})
 
-    if event_type == "user.created":
-        await _handle_user_created(data)
-    elif event_type == "user.updated":
-        await _handle_user_updated(data)
-    elif event_type == "user.deleted":
-        await _handle_user_deleted(data)
+    try:
+        if event_type == "user.created":
+            await _handle_user_created(data)
+        elif event_type == "user.updated":
+            await _handle_user_updated(data)
+        elif event_type == "user.deleted":
+            await _handle_user_deleted(data)
+    except _PayloadError:
+        pass  # bad data — ack to Clerk, no retry
+    except _InfraError as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
     return {"status": "ok"}
 
@@ -53,23 +66,26 @@ async def _handle_user_created(data: dict) -> None:
             break
 
     if not clerk_user_id or not email:
-        return
+        raise _PayloadError(f"user.created missing id or email (id={clerk_user_id!r})")
 
-    get_service_client().table("users").upsert(
-        {
-            "clerk_user_id": clerk_user_id,
-            "email": email,
-            "plan": "free",
-            "alert_preferences": {"email": True, "push": True},
-        },
-        on_conflict="clerk_user_id",
-    ).execute()
+    try:
+        get_service_client().table("users").upsert(
+            {
+                "clerk_user_id": clerk_user_id,
+                "email": email,
+                "plan": "free",
+                "alert_preferences": {"email": True, "push": True},
+            },
+            on_conflict="clerk_user_id",
+        ).execute()
+    except Exception as e:
+        raise _InfraError(f"DB write failed for user.created clerk_user_id={clerk_user_id}: {e}") from e
 
 
 async def _handle_user_updated(data: dict) -> None:
     clerk_user_id = data.get("id", "")
     if not clerk_user_id:
-        return
+        raise _PayloadError("user.updated missing id")
 
     primary_email_id = data.get("primary_email_address_id", "")
     email = ""
@@ -79,14 +95,20 @@ async def _handle_user_updated(data: dict) -> None:
             break
 
     if not email:
-        return
+        raise _PayloadError(f"user.updated missing email for clerk_user_id={clerk_user_id!r}")
 
-    get_service_client().table("users").update({"email": email}).eq("clerk_user_id", clerk_user_id).execute()
+    try:
+        get_service_client().table("users").update({"email": email}).eq("clerk_user_id", clerk_user_id).execute()
+    except Exception as e:
+        raise _InfraError(f"DB write failed for user.updated clerk_user_id={clerk_user_id}: {e}") from e
 
 
 async def _handle_user_deleted(data: dict) -> None:
     clerk_user_id = data.get("id", "")
     if not clerk_user_id:
-        return
+        raise _PayloadError("user.deleted missing id")
 
-    get_service_client().table("users").delete().eq("clerk_user_id", clerk_user_id).execute()
+    try:
+        get_service_client().table("users").delete().eq("clerk_user_id", clerk_user_id).execute()
+    except Exception as e:
+        raise _InfraError(f"DB write failed for user.deleted clerk_user_id={clerk_user_id}: {e}") from e
