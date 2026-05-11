@@ -27,7 +27,7 @@ export interface Deadline {
   contract_id: string
   clause_id: string | null
   deadline_date: string
-  alert_type: string
+  alert_window: string
   alert_status: string
 }
 

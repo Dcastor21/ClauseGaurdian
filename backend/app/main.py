@@ -12,6 +12,19 @@ from app.scheduler import shutdown_scheduler, start_scheduler
 
 settings = get_settings()
 
+if settings.SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+    from sentry_sdk.integrations.starlette import StarletteIntegration
+
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        integrations=[StarletteIntegration(), FastApiIntegration()],
+        traces_sample_rate=0.2,
+        environment=settings.ENVIRONMENT,
+        release=settings.ENVIRONMENT,
+    )
+
 logging.basicConfig(
     level=logging.DEBUG if settings.ENVIRONMENT == "development" else logging.INFO,
     format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",

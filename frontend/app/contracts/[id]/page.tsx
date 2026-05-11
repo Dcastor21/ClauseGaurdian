@@ -146,7 +146,7 @@ export default function ContractDetailPage() {
                   >
                     <div className="flex items-center gap-3">
                       <span className="font-mono text-sm text-gray-700">{formatDate(d.deadline_date)}</span>
-                      <span className="text-xs text-gray-400">{d.alert_type}</span>
+                      <span className="text-xs text-gray-400">{d.alert_window}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       {(urgent || warn) && (

@@ -1,5 +1,5 @@
 import os
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 # Must come before any app import — get_settings() reads these at import time
 os.environ.setdefault("CLERK_SECRET_KEY", "sk_test_fake")
@@ -94,6 +94,11 @@ def contracts_client(monkeypatch, mock_contracts_supabase):
     async def noop_pipeline(*args, **kwargs):
         pass
     monkeypatch.setattr("app.routers.contracts._run_analysis_pipeline", noop_pipeline)
+    # Bypass rate limiting in upload tests — not the subject under test here
+    monkeypatch.setattr(
+        "app.middleware.rate_limit.check_rate_limit",
+        AsyncMock(return_value=(True, 0)),
+    )
 
     from app.main import app
 

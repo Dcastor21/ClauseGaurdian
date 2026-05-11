@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, B
                                                      # BackgroundTasks: runs pipeline after response is sent
 from app.config import get_settings                  # settings singleton for upload limits
 from app.middleware.clerk_auth import get_current_user_id  # JWT dependency — injects clerk_user_id
+from app.middleware.rate_limit import require_upload_rate_limit
 from app.db.supabase import get_service_client       # service client used for all backend DB ops
 from app.db.models import ContractRead, ContractCreate, ContractUpdate
 
@@ -36,6 +37,7 @@ async def upload_contract(
     file: UploadFile = File(...),                              # multipart file field
     name: str | None = Form(None),                             # optional display name; defaults to filename
     clerk_user_id: str = Depends(get_current_user_id),         # JWT validation — rejects unauthenticated requests
+    _: None = Depends(require_upload_rate_limit),              # 10 uploads / user / hour
 ) -> ContractRead:
     """
     WHY: This is the entry point for the entire ClauseGuardian pipeline.
