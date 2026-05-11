@@ -38,11 +38,14 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "http://localhost:3001",
-        "https://*.vercel.app",
     ],
+    # Regex covers all Vercel preview and production deploys.
+    # allow_origins glob patterns (e.g. "https://*.vercel.app") are not supported
+    # by starlette — they are treated as literal strings and never match.
+    allow_origin_regex=r"^https://[a-z0-9-]+\.vercel\.app$",
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
 

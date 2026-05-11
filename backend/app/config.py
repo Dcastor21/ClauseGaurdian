@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     HELICONE_BASE_URL: str = "https://openrouter.helicone.ai/api/v1"
     LLM_MODEL: str = "anthropic/claude-3-haiku"
     RESEND_API_KEY: str
+    RESEND_FROM_ADDRESS: str = "onboarding@resend.dev"
     NTFY_TOPIC: str
     UPSTASH_REDIS_REST_URL: str
     UPSTASH_REDIS_REST_TOKEN: str

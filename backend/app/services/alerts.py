@@ -9,7 +9,6 @@ from app.db.supabase import get_service_client
 logger = logging.getLogger(__name__)
 
 _RESEND_API_URL = "https://api.resend.com/emails"
-_FROM_ADDRESS = "alerts@clauseguardian.com"
 
 
 async def send_email_alert(
@@ -26,7 +25,7 @@ async def send_email_alert(
                 _RESEND_API_URL,
                 headers={"Authorization": f"Bearer {settings.RESEND_API_KEY}"},
                 json={
-                    "from": _FROM_ADDRESS,
+                    "from": settings.RESEND_FROM_ADDRESS,
                     "to": [to_email],
                     "subject": subject,
                     "html": body_html,
