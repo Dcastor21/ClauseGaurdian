@@ -21,6 +21,7 @@ if settings.SENTRY_DSN:
         dsn=settings.SENTRY_DSN,
         integrations=[StarletteIntegration(), FastApiIntegration()],
         traces_sample_rate=0.2,
+        send_default_pii=True,
         environment=settings.ENVIRONMENT,
         release=settings.ENVIRONMENT,
     )
@@ -51,14 +52,19 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
     ],
-    # Regex covers all Vercel preview and production deploys.
-    # allow_origins glob patterns (e.g. "https://*.vercel.app") are not supported
-    # by starlette — they are treated as literal strings and never match.
-    allow_origin_regex=r"^https://[a-z0-9-]+\.vercel\.app$",
+    # Covers Vercel deploys + any local-network IP (192.168/10/172.16-31) on port 3000-3001.
+    # Local IP ranges are safe here because the backend is not publicly reachable on LAN.
+    allow_origin_regex=(
+        r"^https://[a-z0-9-]+\.vercel\.app$"
+        r"|^http://(192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}"
+        r"|172\.(1[6-9]|2[0-9]|3[01])\.\d{1,3}\.\d{1,3}):(3000|3001)$"
+    ),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Accept"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "baggage", "sentry-trace"],
 )
 
 
@@ -71,3 +77,4 @@ app.include_router(deadlines_router, prefix="/api/v1/deadlines", tags=["Deadline
 @app.get("/health", tags=["Ops"])
 async def health_check() -> dict:
     return {"status": "ok", "environment": settings.ENVIRONMENT}
+

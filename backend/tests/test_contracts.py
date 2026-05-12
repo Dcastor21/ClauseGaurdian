@@ -169,6 +169,27 @@ def test_upload_db_fail_deletes_storage_orphan(contracts_client, mock_contracts_
     mock_contracts_supabase.storage.from_.return_value.remove.assert_called_once()
 
 
+def test_upload_db_fk_missing_user_returns_helpful_502(contracts_client, mock_contracts_supabase):
+    mock_contracts_supabase.table.return_value.insert.return_value.execute.side_effect = Exception(
+        {
+            "message": (
+                'insert or update on table "contracts" violates foreign key constraint "contracts_clerk_user_id_fkey"'
+            ),
+            "code": "23503",
+        }
+    )
+
+    resp = contracts_client.post(
+        "/api/v1/contracts/upload",
+        files={"file": ("contract.pdf", _minimal_pdf(), "application/pdf")},
+        headers=_auth(),
+    )
+
+    assert resp.status_code == 502
+    assert "User record not found" in resp.json()["detail"]
+    mock_contracts_supabase.storage.from_.return_value.remove.assert_called_once()
+
+
 # --- list ---
 
 def test_list_returns_contracts(contracts_client, mock_contracts_supabase):

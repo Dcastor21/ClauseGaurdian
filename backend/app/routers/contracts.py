@@ -68,6 +68,11 @@ async def upload_contract(
         HTTPException 502: Supabase Storage upload failed
         HTTPException 502: Supabase DB insert failed
     """
+    logger.debug(
+        f"Upload received: user={clerk_user_id}, filename={file.filename!r}, "
+        f"content_type={file.content_type!r}, size={file.size}"
+    )
+
     # Step 1: Validate MIME type
     # content_type can be None if the client doesn't set it — treat None as invalid
     if file.content_type not in ALLOWED_MIME_TYPES:
@@ -139,6 +144,15 @@ async def upload_contract(
         # Storage upload succeeded but DB insert failed — clean up the orphaned file
         logger.error(f"DB insert failed for contract_id={contract_id}: {e}", exc_info=True)
         _delete_from_storage(client, storage_path)
+        if _is_missing_user_fk_error(e):
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    "User record not found in the database. "
+                    "This can happen if Clerk has not yet synced the new account. "
+                    "Please try again in a few seconds."
+                ),
+            )
         raise HTTPException(
             status_code=502,
             detail="Failed to save contract record. Please try again.",
@@ -321,6 +335,20 @@ async def delete_contract(
 
 
 # ── PRIVATE HELPERS ───────────────────────────────────────────────────────────
+
+def _is_missing_user_fk_error(error: Exception) -> bool:
+    if isinstance(error, dict):
+        return (
+            error.get("code") == "23503"
+            and "contracts_clerk_user_id_fkey" in (error.get("message") or "")
+        )
+
+    message = str(error)
+    return (
+        "violates foreign key constraint \"contracts_clerk_user_id_fkey\"" in message
+        or ("23503" in message and "contracts_clerk_user_id_fkey" in message)
+    )
+
 
 def _delete_from_storage(client, path: str) -> None:
     """
