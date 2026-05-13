@@ -22,7 +22,7 @@ export function RiskGauge({ risk }: { risk: Risk }) {
 
   return (
     <div className="flex flex-col items-center">
-      <svg viewBox="0 0 100 60" className="w-40 h-24">
+      <svg viewBox="0 0 100 60" className="w-40 h-24" role="img" aria-label={`Risk gauge: ${config.label}`}>
         {/* Background track */}
         <path
           d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}

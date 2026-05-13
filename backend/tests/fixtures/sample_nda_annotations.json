@@ -1,0 +1,12 @@
+{
+  "description": "Annotated clause types present in sample_nda.txt",
+  "expected_clause_types": [
+    "auto_renewal",
+    "confidentiality",
+    "governing_law",
+    "indemnification",
+    "ip_assignment",
+    "termination"
+  ],
+  "precision_threshold": 0.85
+}

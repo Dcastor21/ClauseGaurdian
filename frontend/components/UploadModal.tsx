@@ -34,6 +34,12 @@ export function UploadModal({ getToken, onComplete, onClose }: Props) {
   // Without this the interval fires forever after the component unmounts.
   useEffect(() => () => stopPolling(), [])
 
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
+
   async function handleFile(file: File) {
     setError(null)
     if (!ALLOWED_TYPES.includes(file.type)) {
@@ -101,16 +107,23 @@ export function UploadModal({ getToken, onComplete, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6 relative">
+      <div
+        className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6 relative"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="upload-modal-title"
+      >
+        {/* mobile: p-2 and min-h/w ensure ≥44px tap target for the close button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+          aria-label="Close upload modal"
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-2 min-h-[44px] min-w-[44px] flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-accent/50 rounded"
           disabled={step === 'uploading' || step === 'analyzing'}
         >
-          <X className="w-5 h-5" />
+          <X className="w-5 h-5" aria-hidden="true" />
         </button>
 
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Upload Contract</h2>
+        <h2 id="upload-modal-title" className="text-lg font-semibold text-gray-900 mb-4">Upload Contract</h2>
 
         {step === 'idle' && (
           <div
@@ -118,12 +131,16 @@ export function UploadModal({ getToken, onComplete, onClose }: Props) {
             onDragLeave={() => setDragging(false)}
             onDrop={onDrop}
             onClick={() => inputRef.current?.click()}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inputRef.current?.click() } }}
+            role="button"
+            tabIndex={0}
             className={clsx(
-              'border-2 border-dashed rounded-lg p-10 flex flex-col items-center gap-3 cursor-pointer transition-colors',
+              // mobile: p-6 reduces drop-zone height at xs; sm:p-10 restores desktop spacing
+              'border-2 border-dashed rounded-lg p-6 sm:p-10 flex flex-col items-center gap-3 cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2',
               dragging ? 'border-accent bg-blue-50' : 'border-gray-300 hover:border-accent',
             )}
           >
-            <Upload className="w-8 h-8 text-gray-400" />
+            <Upload className="w-8 h-8 text-gray-400" aria-hidden="true" />
             <p className="text-sm text-gray-600 text-center">
               Drag & drop a PDF or DOCX, or{' '}
               <span className="text-accent font-medium">browse</span>
@@ -133,6 +150,7 @@ export function UploadModal({ getToken, onComplete, onClose }: Props) {
               ref={inputRef}
               type="file"
               accept=".pdf,.docx"
+              aria-label="Choose PDF or DOCX file"
               className="hidden"
               onChange={onChange}
             />

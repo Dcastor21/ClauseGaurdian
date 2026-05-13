@@ -1,0 +1,94 @@
+name: Backend CD
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  # ── Deploy (runs on push to main) ──────────────────────────────────────────
+  deploy:
+    name: Lint, Test, Build & Deploy to Render
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history for sentry-cli commit tracking
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Type check (mypy)
+        run: mypy app/ --strict
+
+      - name: Test with coverage
+        run: pytest tests/ --cov=app --cov-report=xml --cov-fail-under=70
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-coverage-xml
+          path: backend/coverage.xml
+
+      - name: Build Docker image
+        run: docker build -t clauseguardian-api .
+
+      - name: Trigger Render deploy
+        run: curl --fail-with-body -s -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+
+      - name: Finalize Sentry release
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+        run: |
+          VERSION=$(git rev-parse --short HEAD)
+          curl -sL https://sentry.io/get-cli/ | bash
+          sentry-cli releases new "$VERSION"
+          sentry-cli releases set-commits "$VERSION" --auto
+          sentry-cli releases finalize "$VERSION"
+        working-directory: ${{ github.workspace }}
+
+  # ── Daily extraction precision eval ────────────────────────────────────────
+  extraction-eval:
+    name: Daily Extraction Precision Eval
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run extraction precision eval
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          HELICONE_API_KEY: ${{ secrets.HELICONE_API_KEY }}
+        run: python tests/eval_extraction.py
