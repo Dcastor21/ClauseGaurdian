@@ -49,11 +49,10 @@ async function apiFetch<T>(path: string, token: string, init?: RequestInit): Pro
 
 export async function listContracts(
   token: string,
-  opts: { search?: string; risk?: string } = {},
+  opts: { search?: string } = {},
 ): Promise<Contract[]> {
   const p = new URLSearchParams()
   if (opts.search) p.set('search', opts.search)
-  if (opts.risk) p.set('risk', opts.risk)
   const qs = p.toString() ? `?${p}` : ''
   return apiFetch(`/api/v1/contracts${qs}`, token)
 }
@@ -85,4 +84,35 @@ export async function listClauses(token: string, contractId: string): Promise<Cl
 
 export async function listDeadlines(token: string, contractId: string): Promise<Deadline[]> {
   return apiFetch(`/api/v1/deadlines?contract_id=${contractId}`, token)
+}
+
+export interface AlertPreferences {
+  email: boolean
+  push: boolean
+  windows: number[]
+}
+
+export interface UserProfile {
+  id: string
+  clerk_user_id: string
+  email: string
+  plan: string
+  alert_preferences: AlertPreferences
+  contracts_this_month: number
+  monthly_limit: number
+  created_at: string
+}
+
+export async function getMe(token: string): Promise<UserProfile> {
+  return apiFetch('/api/v1/users/me', token)
+}
+
+export async function updatePreferences(
+  token: string,
+  prefs: Partial<AlertPreferences>,
+): Promise<{ alert_preferences: AlertPreferences }> {
+  return apiFetch('/api/v1/users/me/preferences', token, {
+    method: 'PATCH',
+    body: JSON.stringify(prefs),
+  })
 }

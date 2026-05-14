@@ -8,6 +8,7 @@ import { clsx } from 'clsx'
 import { getContract, listClauses, listDeadlines, type Contract, type Clause, type Deadline } from '../../../lib/api'
 import { RiskBadge } from '../../../components/RiskBadge'
 import { RiskGauge } from '../../../components/RiskGauge'
+import { RiskDonut } from '../../../components/RiskDonut'
 import { ClauseCard } from '../../../components/ClauseCard'
 import { Skeleton } from '../../../components/Skeleton'
 import { QuickTipCard } from '../../../components/QuickTipCard'
@@ -191,8 +192,36 @@ export default function ContractDetailPage() {
             </section>
           </div>
 
-          {/* Right column: deadlines + quick tip (stacks after clause list on mobile) */}
+          {/* Right column: donut + deadlines + quick tip (stacks after clause list on mobile) */}
           <div className="md:col-span-1 space-y-4">
+            {clauses.length > 0 && (
+              <div className="bg-white rounded-xl border border-gray-200 p-4">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                  Clause Breakdown
+                </p>
+                <RiskDonut clauses={clauses} />
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-3">
+                  {(
+                    [
+                      { label: 'Critical', sev: 'critical', color: 'text-red-600' },
+                      { label: 'High',     sev: 'high',     color: 'text-orange-500' },
+                      { label: 'Medium',   sev: 'medium',   color: 'text-yellow-600' },
+                      { label: 'Low',      sev: 'low',      color: 'text-green-600' },
+                    ] as const
+                  )
+                    .filter(s => clauses.some(c => c.severity === s.sev))
+                    .map(s => (
+                      <div key={s.sev} className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">{s.label}</span>
+                        <span className={clsx('font-mono text-sm font-semibold', s.color)}>
+                          {clauses.filter(c => c.severity === s.sev).length}
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
             {uniqueDl.length > 0 && (
               <section>
                 <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
