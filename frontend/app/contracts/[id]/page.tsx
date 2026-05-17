@@ -1,35 +1,54 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useAuth } from '@clerk/nextjs'
 import { useRouter, useParams } from 'next/navigation'
-import { ArrowLeft, Calendar, FileText } from 'lucide-react'
-import { clsx } from 'clsx'
-import { getContract, listClauses, listDeadlines, type Contract, type Clause, type Deadline } from '../../../lib/api'
-import { RiskBadge } from '../../../components/RiskBadge'
-import { RiskGauge } from '../../../components/RiskGauge'
-import { RiskDonut } from '../../../components/RiskDonut'
-import { ClauseCard } from '../../../components/ClauseCard'
-import { Skeleton } from '../../../components/Skeleton'
-import { QuickTipCard } from '../../../components/QuickTipCard'
+import { ContractDetail } from '@/components/cg/detail'
+import { CounterProposalModal } from '@/components/cg/counter'
+import { AskAssistant } from '@/components/cg/assistant'
+import { Icon } from '@/components/cg/icons'
+import { loadContractDetail } from '@/lib/cg/fetch'
+import {
+  SEED_CONTRACTS,
+  type CgContract,
+  type CgComment,
+  type TriageDecision,
+} from '@/lib/cg/data'
 
-const SEVERITY_ORDER: Clause['severity'][] = ['critical', 'high', 'medium', 'low']
-
-function daysUntil(dateStr: string): number {
-  return Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+// Pre-seeded triage + comments so the sample "Acme MSA" tour shows the full
+// workflow on first visit (matches the design demo). Real contracts start clean.
+const SEED_TRIAGE: Record<string, TriageDecision> = {
+  'cl-1': 'negotiate',
+  'cl-2': 'negotiate',
+  'cl-6': 'accept',
+  'cl-7': 'accept',
 }
-
-function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric',
-  })
-}
-
-function uniqueDeadlines(deadlines: Deadline[]): Deadline[] {
-  const seen = new Set<string>()
-  return deadlines
-    .filter((d) => { const key = d.deadline_date.slice(0, 10); if (seen.has(key)) return false; seen.add(key); return true })
-    .sort((a, b) => new Date(a.deadline_date).getTime() - new Date(b.deadline_date).getTime())
+const SEED_COMMENTS: Record<string, CgComment[]> = {
+  'cl-1': [
+    {
+      id: 'co1',
+      author: 'Mara H.',
+      role: 'Advisor',
+      text: "Worth getting them to 30 days — Acme's standard is actually 30 with enterprise tier. Try it.",
+      ts: '2026-05-14T11:22:00Z',
+    },
+    {
+      id: 'co2',
+      author: 'Sam (you)',
+      role: 'You',
+      text: 'Will ask. Also putting a reminder in calendar for April 1, 2027 in case it doesn\'t move.',
+      ts: '2026-05-14T15:08:00Z',
+    },
+  ],
+  'cl-2': [
+    {
+      id: 'co3',
+      author: 'Mara H.',
+      role: 'Advisor',
+      text: 'Push hard on this one. 1 month cap is unusual for SaaS — usually 12.',
+      ts: '2026-05-14T11:24:00Z',
+    },
+  ],
 }
 
 export default function ContractDetailPage() {
@@ -38,243 +57,173 @@ export default function ContractDetailPage() {
   const params = useParams()
   const id = params.id as string
 
-  const [contract, setContract] = useState<Contract | null>(null)
-  const [clauses, setClauses] = useState<Clause[]>([])
-  const [deadlines, setDeadlines] = useState<Deadline[]>([])
+  const [contract, setContract] = useState<CgContract | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [notFound, setNotFound] = useState(false)
+
+  const [triage, setTriageState] = useState<Record<string, TriageDecision | null>>(
+    id === 'c-acme-msa' ? SEED_TRIAGE : {},
+  )
+  const [notes, setNotesState] = useState<Record<string, string | null>>({})
+  const [comments, setCommentsState] = useState<Record<string, CgComment[]>>(
+    id === 'c-acme-msa' ? SEED_COMMENTS : {},
+  )
+
+  const [showCounter, setShowCounter] = useState(false)
+  const [showAsk, setShowAsk] = useState(false)
+
+  const setTriage = (cid: string, v: TriageDecision | null) =>
+    setTriageState((s) => ({ ...s, [cid]: v }))
+  const setNote = (cid: string, v: string | null) =>
+    setNotesState((s) => ({ ...s, [cid]: v }))
+  const addComment = (clauseId: string, text: string) =>
+    setCommentsState((s) => ({
+      ...s,
+      [clauseId]: [
+        ...(s[clauseId] ?? []),
+        {
+          id: `co-${Date.now()}`,
+          author: 'Sam (you)',
+          role: 'You',
+          text,
+          ts: new Date().toISOString(),
+        },
+      ],
+    }))
+
+  const load = useCallback(async () => {
+    const seed = SEED_CONTRACTS.find((c) => c.id === id)
+    const token = await getToken()
+    if (!token) return
+    try {
+      setContract(await loadContractDetail(token, id))
+    } catch {
+      if (seed) setContract(seed)
+      else setNotFound(true)
+    } finally {
+      setLoading(false)
+    }
+  }, [getToken, id])
 
   useEffect(() => {
     if (!isLoaded) return
-    if (!isSignedIn) { router.push('/sign-in'); return }
-
-    async function load() {
-      const token = await getToken()
-      if (!token) return
-      try {
-        const [c, cl, dl] = await Promise.all([
-          getContract(token, id),
-          listClauses(token, id),
-          listDeadlines(token, id),
-        ])
-        setContract(c)
-        setClauses(cl.slice().sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity)))
-        setDeadlines(dl)
-      } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : 'Failed to load contract.')
-      } finally {
-        setLoading(false)
-      }
+    if (!isSignedIn) {
+      router.push('/sign-in')
+      return
+    }
+    // Sample tour: resolve seed contracts instantly without a backend call.
+    const seed = SEED_CONTRACTS.find((c) => c.id === id)
+    if (seed) {
+      setContract(seed)
+      setLoading(false)
+      return
     }
     load()
-  }, [isLoaded, isSignedIn, id, getToken, router])
+  }, [isLoaded, isSignedIn, id, router, load])
+
+  // Poll while a real contract is still being analyzed.
+  useEffect(() => {
+    if (!contract) return
+    if (contract.status !== 'analyzing' && contract.status !== 'processing') return
+    if (SEED_CONTRACTS.some((c) => c.id === id)) return
+    const t = setInterval(load, 5000)
+    return () => clearInterval(t)
+  }, [contract, id, load])
+
+  // "?" toggles Ask ClauseGardian on the detail page.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (
+        e.key === '?' &&
+        !(e.target as HTMLElement).matches('input, textarea, [contenteditable]')
+      ) {
+        e.preventDefault()
+        setShowAsk((s) => !s)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#F8FAFC]">
-        <header className="bg-white border-b border-gray-200 px-4 md:px-8 py-4 flex items-center gap-4">
-          {/* mobile: p-2 ensures ≥44px tap target for the back button */}
+      <div
+        className="min-h-screen grid place-items-center"
+        style={{ background: 'var(--bg)' }}
+      >
+        <div className="flex flex-col items-center gap-3">
+          <span
+            className="w-10 h-10 rounded-full grid place-items-center"
+            style={{ background: 'var(--primary-2)', color: 'var(--primary)' }}
+          >
+            <Icon.Leaf size={18} />
+          </span>
+          <p className="text-sm" style={{ color: 'var(--ink-3)' }}>
+            Opening the analysis…
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (notFound || !contract) {
+    return (
+      <div
+        className="min-h-screen grid place-items-center px-6 text-center"
+        style={{ background: 'var(--bg)' }}
+      >
+        <div>
+          <p
+            className="font-display text-[40px] leading-[1.18]"
+            style={{ color: 'var(--ink)' }}
+          >
+            That contract isn&apos;t in this garden.
+          </p>
+          <p className="mt-2 text-sm" style={{ color: 'var(--ink-2)' }}>
+            It may have been deleted, or never planted at all.
+          </p>
           <button
             onClick={() => router.push('/dashboard')}
-            aria-label="Back to dashboard"
-            className="text-gray-400 hover:text-gray-700 transition-colors p-2 rounded focus:outline-none focus:ring-2 focus:ring-accent/30"
+            className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium"
+            style={{ color: 'var(--primary)' }}
           >
-            <ArrowLeft className="w-5 h-5" aria-hidden="true" />
+            <Icon.ArrowLeft size={14} /> Back to dashboard
           </button>
-          <div className="flex-1 min-w-0 animate-pulse">
-            <div className="h-5 bg-gray-200 rounded w-48" />
-          </div>
-          <div className="h-5 bg-gray-100 rounded w-16 animate-pulse" />
-        </header>
-
-        <div className="max-w-4xl mx-auto px-4 md:px-8 py-6 space-y-6">
-          <div className="bg-white rounded-xl border border-gray-200 p-6 flex flex-col md:flex-row items-center gap-6">
-            <Skeleton variant="gauge" />
-            <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-4 animate-pulse">
-              {[...Array(3)].map((_, i) => (
-                <div key={i}>
-                  <div className="h-3 bg-gray-100 rounded w-16 mb-2" />
-                  <div className="h-8 bg-gray-200 rounded w-12" />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <section>
-            <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-              <FileText className="w-4 h-4 text-gray-400" /> Clauses
-            </h2>
-            <div className="space-y-2">
-              <Skeleton variant="card" />
-              <Skeleton variant="card" />
-              <Skeleton variant="card" />
-            </div>
-          </section>
         </div>
       </div>
     )
   }
-
-  if (error || !contract) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4">
-        <p className="text-gray-500 text-sm">{error ?? 'Contract not found.'}</p>
-        {/* mobile: py-3 ensures ≥44px tap target for the error-state back link */}
-        <button onClick={() => router.push('/dashboard')} className="text-accent text-sm underline py-3">
-          Back to dashboard
-        </button>
-      </div>
-    )
-  }
-
-  const uniqueDl = uniqueDeadlines(deadlines)
-  const criticalCount = clauses.filter((c) => c.severity === 'critical').length
-  const highCount = clauses.filter((c) => c.severity === 'high').length
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC]">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-4 md:px-8 py-4 flex items-center gap-4">
-        {/* mobile: p-2 ensures ≥44px tap target for the back button */}
-        <button
-          onClick={() => router.push('/dashboard')}
-          aria-label="Back to dashboard"
-          className="text-gray-400 hover:text-gray-700 transition-colors p-2 rounded focus:outline-none focus:ring-2 focus:ring-accent/30"
-        >
-          <ArrowLeft className="w-5 h-5" aria-hidden="true" />
-        </button>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-base font-semibold text-gray-900 truncate">{contract.name}</h1>
-        </div>
-        <RiskBadge risk={contract.overall_risk} />
-      </header>
+    <>
+      <ContractDetail
+        contract={contract}
+        onBack={() => router.push('/dashboard')}
+        triageState={triage}
+        setTriage={setTriage}
+        notes={notes}
+        setNote={setNote}
+        comments={comments}
+        addComment={addComment}
+        onGenerateCounter={() => setShowCounter(true)}
+      />
 
-      <div className="max-w-5xl mx-auto px-4 md:px-8 py-6">
-        <div className="grid md:grid-cols-3 gap-6">
-          {/* Left column: summary card + clause list */}
-          <div className="md:col-span-2 space-y-6">
-            {/* Summary card */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 flex flex-col md:flex-row items-center gap-6">
-              <RiskGauge risk={contract.overall_risk} />
-              {/* mobile: grid-cols-3 at all sizes avoids an orphaned stat on xs */}
-              <div className="flex-1 grid grid-cols-3 gap-4 text-center md:text-left">
-                <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Clauses</p>
-                  <p className="font-mono text-2xl font-semibold text-gray-900">{clauses.length}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Critical</p>
-                  <p className="font-mono text-2xl font-semibold text-red-600">{criticalCount}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">High</p>
-                  <p className="font-mono text-2xl font-semibold text-orange-500">{highCount}</p>
-                </div>
-              </div>
-            </div>
+      <CounterProposalModal
+        open={showCounter}
+        onClose={() => setShowCounter(false)}
+        contract={contract}
+        triageState={triage}
+        notes={notes}
+      />
 
-            {/* Clause list */}
-            <section>
-              <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                <FileText className="w-4 h-4 text-gray-400" /> Clauses ({clauses.length})
-              </h2>
-              {clauses.length === 0 ? (
-                <p className="text-gray-400 text-sm text-center py-8">
-                  {contract.status === 'analyzing' ? 'Analyzing contract...' : 'No clauses found.'}
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {clauses.map((c) => (
-                    <ClauseCard key={c.id} clause={c} />
-                  ))}
-                </div>
-              )}
-            </section>
-          </div>
-
-          {/* Right column: donut + deadlines + quick tip (stacks after clause list on mobile) */}
-          <div className="md:col-span-1 space-y-4">
-            {clauses.length > 0 && (
-              <div className="bg-white rounded-xl border border-gray-200 p-4">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-                  Clause Breakdown
-                </p>
-                <RiskDonut clauses={clauses} />
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-3">
-                  {(
-                    [
-                      { label: 'Critical', sev: 'critical', color: 'text-red-600' },
-                      { label: 'High',     sev: 'high',     color: 'text-orange-500' },
-                      { label: 'Medium',   sev: 'medium',   color: 'text-yellow-600' },
-                      { label: 'Low',      sev: 'low',      color: 'text-green-600' },
-                    ] as const
-                  )
-                    .filter(s => clauses.some(c => c.severity === s.sev))
-                    .map(s => (
-                      <div key={s.sev} className="flex items-center justify-between">
-                        <span className="text-xs text-gray-500">{s.label}</span>
-                        <span className={clsx('font-mono text-sm font-semibold', s.color)}>
-                          {clauses.filter(c => c.severity === s.sev).length}
-                        </span>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            )}
-
-            {uniqueDl.length > 0 && (
-              <section>
-                <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-gray-400" /> Deadlines
-                </h2>
-                <div className="space-y-2">
-                  {uniqueDl.map((d) => {
-                    const days = daysUntil(d.deadline_date)
-                    const urgent = days <= 7
-                    const warn = days <= 14 && days > 7
-                    return (
-                      <div
-                        key={d.id}
-                        className={clsx(
-                          'bg-white rounded-lg border px-4 py-3 flex items-center justify-between',
-                          urgent ? 'border-red-200' : warn ? 'border-amber-200' : 'border-gray-200',
-                        )}
-                      >
-                        {/* mobile: min-w-0 allows the left group to shrink; truncate clips long alert_window strings */}
-                        <div className="flex items-center gap-3 min-w-0">
-                          <span className="font-mono text-sm text-gray-700 shrink-0">{formatDate(d.deadline_date)}</span>
-                          <span className="text-xs text-gray-400 truncate min-w-0">{d.alert_window}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {(urgent || warn) && (
-                            <span
-                              className={clsx(
-                                'rounded px-2 py-0.5 text-xs font-medium',
-                                urgent ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700',
-                              )}
-                            >
-                              {urgent ? '≤7d' : '≤14d'}
-                            </span>
-                          )}
-                          <span
-                            className={clsx(
-                              'font-mono text-sm font-semibold',
-                              urgent ? 'text-red-600' : warn ? 'text-amber-600' : 'text-gray-500',
-                            )}
-                          >
-                            {days >= 0 ? `${days}d` : 'Expired'}
-                          </span>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </section>
-            )}
-            <QuickTipCard body="Share this analysis with your legal advisor before signing. AI analysis is not legal advice." />
-          </div>
-        </div>
-      </div>
-    </div>
+      {contract.status === 'complete' && (
+        <AskAssistant
+          open={showAsk}
+          onOpen={() => setShowAsk(true)}
+          onClose={() => setShowAsk(false)}
+          contract={contract}
+        />
+      )}
+    </>
   )
 }
