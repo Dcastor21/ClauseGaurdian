@@ -20,7 +20,7 @@ const ibmMono = IBM_Plex_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'ClauseGardian — Tending your contracts',
+  title: 'ClauseGuardian — Tending your contracts',
   description: 'We read every page, flag the clauses that could quietly hurt you, and explain them in plain English.',
 }
 
@@ -33,7 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         data-density="regular"
         className={cn(jakartaSans.variable, ibmMono.variable, geist.variable)}
       >
-        <body className="antialiased">
+        <body className="antialiased" suppressHydrationWarning>
           {/* Design fonts: Instrument Serif (display), Geist (body), Geist Mono
               (numerics). Loaded via <link> so the literal family names also
               resolve inside inline SVG <text> in gauges/donuts. */}

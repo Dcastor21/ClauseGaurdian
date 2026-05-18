@@ -35,7 +35,7 @@ export function TopBar({
   const notifsRef = React.useRef<HTMLDivElement>(null)
 
   const navItems = [
-    { route: 'dashboard', label: 'Garden', icon: Icon.Inbox },
+    { route: 'dashboard', label: 'Contracts', icon: Icon.Inbox },
     { route: 'calendar', label: 'Calendar', icon: Icon.Calendar },
     { route: 'analytics', label: 'Analytics', icon: Icon.Hash },
     { route: 'compare', label: 'Compare', icon: Icon.Grid },
@@ -76,7 +76,7 @@ export function TopBar({
             <Leaf size={15} />
           </span>
           <span className="font-display text-[20px] leading-none" style={{ letterSpacing: '-0.01em' }}>
-            ClauseGardian
+            ClauseGuardian
           </span>
         </button>
 
@@ -149,7 +149,7 @@ export function TopBar({
             )}
           </div>
           <Btn variant="primary" size="md" icon={Icon.Upload} onClick={onUpload}>
-            <span className="hidden sm:inline">Plant a contract</span>
+            <span className="hidden sm:inline">upload a contract</span>
             <span className="sm:hidden">Plant</span>
           </Btn>
         </div>

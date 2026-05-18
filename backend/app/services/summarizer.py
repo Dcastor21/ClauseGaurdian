@@ -1,4 +1,3 @@
-import json
 import logging
 
 from langchain_core.messages import HumanMessage
@@ -7,6 +6,7 @@ from langchain_openai import ChatOpenAI
 from app.config import get_settings
 from app.db.models import ClauseCreate
 from app.db.supabase import get_service_client
+from app.services.utils import parse_llm_json
 
 logger = logging.getLogger(__name__)
 
@@ -27,12 +27,14 @@ async def summarize_clauses(
     clauses: list[ClauseCreate],
     contract_id: str,
     clerk_user_id: str,
-) -> None:
+) -> int:
+    """Returns the number of clauses that failed summarization."""
     if not clauses:
-        return
+        return 0
 
     settings = get_settings()
     client = get_service_client()
+    failed = 0
 
     for clause in clauses:
         try:
@@ -44,9 +46,10 @@ async def summarize_clauses(
             )
         except Exception as e:
             logger.error(
-                f"[summarizer] Failed for clause_type={clause.clause_type}, "
+                f"[summarizer] LLM failed for clause_type={clause.clause_type}, "
                 f"contract={contract_id}: {e}"
             )
+            failed += 1
             continue
 
         try:
@@ -58,6 +61,9 @@ async def summarize_clauses(
                 f"[summarizer] DB write failed for clause_type={clause.clause_type}, "
                 f"contract={contract_id}: {e}"
             )
+            failed += 1
+
+    return failed
 
 
 async def _llm_summarize(
@@ -82,16 +88,10 @@ async def _llm_summarize(
 
 
 def _parse_summary(content: str) -> tuple[str, str]:
-    content = content.strip()
-    if content.startswith("```"):
-        lines = content.splitlines()
-        content = "\n".join(lines[1:-1]).strip()
-    try:
-        data = json.loads(content)
+    data = parse_llm_json(content)
+    if isinstance(data, dict):
         summary = data.get("summary", "").strip()
         recommended_action = data.get("recommended_action", "").strip()
         if summary and recommended_action:
             return summary, recommended_action
-    except json.JSONDecodeError:
-        pass
     raise ValueError(f"Could not parse summary from LLM response: {content[:100]!r}")

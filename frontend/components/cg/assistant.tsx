@@ -1,6 +1,6 @@
 'use client'
 
-// components/cg/assistant.tsx — "Ask ClauseGardian" floating chat panel.
+// components/cg/assistant.tsx — "Ask ClauseGuardian" floating chat panel.
 //
 // The design prototype called window.claude.complete (a design-tool shim). There
 // is no AI assistant endpoint on the real backend yet, so this gracefully
@@ -72,7 +72,7 @@ export function AskAssistant({
     'What questions should I ask them on a call?',
   ]
 
-  const SYSTEM_PROMPT = `You are ClauseGardian, a calm and friendly contract advisor for small-business owners and solo founders. You explain legal terms in plain English. You're opinionated but never alarmist. You speak like a smart friend, not a lawyer.
+  const SYSTEM_PROMPT = `You are ClauseGuardian, a calm and friendly contract advisor for small-business owners and solo founders. You explain legal terms in plain English. You're opinionated but never alarmist. You speak like a smart friend, not a lawyer.
 
 You ALWAYS remind users (briefly, once per conversation) that you're not a substitute for a real attorney for important decisions.
 
@@ -145,7 +145,7 @@ Keep responses SHORT (2–4 sentences usually). Use line breaks for readability.
           >
             <Leaf size={12} />
           </span>
-          <span className="text-sm font-medium">Ask ClauseGardian</span>
+          <span className="text-sm font-medium">Ask ClauseGuardian</span>
           <Kbd>?</Kbd>
         </button>
       )}
@@ -188,7 +188,7 @@ Keep responses SHORT (2–4 sentences usually). Use line breaks for readability.
                 className="text-[14px] font-medium leading-tight"
                 style={{ color: 'var(--ink)' }}
               >
-                Ask ClauseGardian
+                Ask ClauseGuardian
               </p>
               <p className="text-[11px] truncate" style={{ color: 'var(--ink-3)' }}>
                 About: {contract.counterparty}
@@ -295,7 +295,7 @@ Keep responses SHORT (2–4 sentences usually). Use line breaks for readability.
               className="text-[10.5px] mt-2 leading-snug"
               style={{ color: 'var(--ink-3)' }}
             >
-              ClauseGardian is helpful, not legal advice. For important decisions, talk to a real
+              ClauseGuardian is helpful, not legal advice. For important decisions, talk to a real
               attorney.
             </p>
           </form>

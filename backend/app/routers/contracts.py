@@ -398,8 +398,14 @@ async def _run_analysis_pipeline(
         overall_risk = compute_overall_risk(scored)
         logger.info(f"[pipeline] Scored {len(scored)} clauses, overall_risk={overall_risk} for contract_id={contract_id}")
 
-        await summarize_clauses(scored, contract_id, clerk_user_id)
-        logger.info(f"[pipeline] Summarization complete for contract_id={contract_id}")
+        summary_failures = await summarize_clauses(scored, contract_id, clerk_user_id)
+        if summary_failures:
+            logger.warning(
+                f"[pipeline] {summary_failures}/{len(scored)} clause(s) failed summarization "
+                f"for contract_id={contract_id}"
+            )
+        else:
+            logger.info(f"[pipeline] Summarization complete for contract_id={contract_id}")
 
         try:
             await extract_deadlines(result.chunks, contract_id)

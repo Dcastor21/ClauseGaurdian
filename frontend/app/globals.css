@@ -36,8 +36,8 @@
   --color-sidebar-ring: var(--sidebar-ring);
 
   /* Brand colors — hardcoded, not delegated to shadcn variables */
-  --color-navy: #0F172A;
-  --color-accent: #2563EB;
+  --color-navy: #0f172a;
+  --color-accent: #2563eb;
   --color-accent-foreground: #ffffff;
 
   /* Typography */
@@ -125,188 +125,364 @@ body {
 }
 
 /* ───────────────────────────────────────────────────────────────────────────
-   ClauseGardian design system — ported from the Claude Design handoff bundle.
+   ClauseGuardian design system — ported from the Claude Design handoff bundle.
    "Tending" concept: warm garden palette, Instrument Serif display, Geist body.
    Aesthetic / density / dark are switched via data-* attributes on <html>.
    ─────────────────────────────────────────────────────────────────────────── */
 
 :root {
   /* GARDEN — default warm direction */
-  --bg:        oklch(0.97 0.012 85);
-  --surface:   oklch(0.992 0.006 85);
+  --bg: oklch(0.97 0.012 85);
+  --surface: oklch(0.992 0.006 85);
   --surface-2: oklch(0.945 0.014 85);
-  --ink:       oklch(0.22 0.018 80);
-  --ink-2:     oklch(0.42 0.014 80);
-  --ink-3:     oklch(0.60 0.010 80);
-  --line:      oklch(0.89 0.012 85);
-  --line-2:    oklch(0.94 0.010 85);
+  --ink: oklch(0.22 0.018 80);
+  --ink-2: oklch(0.42 0.014 80);
+  --ink-3: oklch(0.6 0.01 80);
+  --line: oklch(0.89 0.012 85);
+  --line-2: oklch(0.94 0.01 85);
 
-  --primary:   oklch(0.38 0.075 155); /* forest */
-  --primary-2: oklch(0.92 0.030 150);
-  --accent:    oklch(0.62 0.110 55);  /* clay */
-  --accent-2:  oklch(0.94 0.040 70);
+  --primary: oklch(0.38 0.075 155); /* forest */
+  --primary-2: oklch(0.92 0.03 150);
+  --accent: oklch(0.62 0.11 55); /* clay */
+  --accent-2: oklch(0.94 0.04 70);
 
   /* Severity — warm/muted, NOT Tailwind defaults */
-  --critical:    oklch(0.50 0.16 28);
-  --critical-bg: oklch(0.95 0.030 28);
-  --high:        oklch(0.62 0.14 50);
-  --high-bg:     oklch(0.96 0.030 60);
-  --medium:      oklch(0.70 0.11 85);
-  --medium-bg:   oklch(0.97 0.025 90);
-  --low:         oklch(0.55 0.09 150);
-  --low-bg:      oklch(0.95 0.025 150);
+  --critical: oklch(0.5 0.16 28);
+  --critical-bg: oklch(0.95 0.03 28);
+  --high: oklch(0.62 0.14 50);
+  --high-bg: oklch(0.96 0.03 60);
+  --medium: oklch(0.7 0.11 85);
+  --medium-bg: oklch(0.97 0.025 90);
+  --low: oklch(0.55 0.09 150);
+  --low-bg: oklch(0.95 0.025 150);
 
   --radius: 10px;
-  --shadow-sm: 0 1px 0 rgba(60,50,30,.04), 0 1px 2px rgba(60,50,30,.03);
-  --shadow-md: 0 1px 0 rgba(60,50,30,.04), 0 4px 14px -6px rgba(60,50,30,.10);
+  --shadow-sm: 0 1px 0 rgba(60, 50, 30, 0.04), 0 1px 2px rgba(60, 50, 30, 0.03);
+  --shadow-md:
+    0 1px 0 rgba(60, 50, 30, 0.04), 0 4px 14px -6px rgba(60, 50, 30, 0.1);
 }
 
 /* EDITORIAL — cream + ink, more publication-y, accent is deep red-brown */
 [data-aesthetic="editorial"] {
-  --bg:        oklch(0.965 0.008 75);
-  --surface:   oklch(0.995 0.004 75);
-  --surface-2: oklch(0.94 0.010 75);
-  --ink:       oklch(0.17 0.012 60);
-  --ink-2:     oklch(0.38 0.010 60);
-  --ink-3:     oklch(0.55 0.008 60);
-  --line:      oklch(0.88 0.008 75);
-  --line-2:    oklch(0.93 0.008 75);
+  --bg: oklch(0.965 0.008 75);
+  --surface: oklch(0.995 0.004 75);
+  --surface-2: oklch(0.94 0.01 75);
+  --ink: oklch(0.17 0.012 60);
+  --ink-2: oklch(0.38 0.01 60);
+  --ink-3: oklch(0.55 0.008 60);
+  --line: oklch(0.88 0.008 75);
+  --line-2: oklch(0.93 0.008 75);
 
-  --primary:   oklch(0.32 0.08 30);   /* deep maroon */
-  --primary-2: oklch(0.93 0.030 30);
-  --accent:    oklch(0.55 0.13 35);
-  --accent-2:  oklch(0.94 0.035 35);
+  --primary: oklch(0.32 0.08 30); /* deep maroon */
+  --primary-2: oklch(0.93 0.03 30);
+  --accent: oklch(0.55 0.13 35);
+  --accent-2: oklch(0.94 0.035 35);
 }
 
 /* COOL — closer to original SaaS palette, but refined */
 [data-aesthetic="cool"] {
-  --bg:        oklch(0.975 0.005 250);
-  --surface:   oklch(1 0 0);
+  --bg: oklch(0.975 0.005 250);
+  --surface: oklch(1 0 0);
   --surface-2: oklch(0.96 0.008 250);
-  --ink:       oklch(0.18 0.02 260);
-  --ink-2:     oklch(0.40 0.018 260);
-  --ink-3:     oklch(0.58 0.012 260);
-  --line:      oklch(0.91 0.008 250);
-  --line-2:    oklch(0.95 0.006 250);
+  --ink: oklch(0.18 0.02 260);
+  --ink-2: oklch(0.4 0.018 260);
+  --ink-3: oklch(0.58 0.012 260);
+  --line: oklch(0.91 0.008 250);
+  --line-2: oklch(0.95 0.006 250);
 
-  --primary:   oklch(0.50 0.16 255);  /* refined blue */
-  --primary-2: oklch(0.94 0.040 255);
-  --accent:    oklch(0.62 0.13 255);
-  --accent-2:  oklch(0.94 0.035 255);
+  --primary: oklch(0.5 0.16 255); /* refined blue */
+  --primary-2: oklch(0.94 0.04 255);
+  --accent: oklch(0.62 0.13 255);
+  --accent-2: oklch(0.94 0.035 255);
 
-  --critical:    oklch(0.55 0.20 25);
+  --critical: oklch(0.55 0.2 25);
   --critical-bg: oklch(0.96 0.035 25);
-  --high:        oklch(0.65 0.17 55);
-  --high-bg:     oklch(0.96 0.035 60);
-  --medium:      oklch(0.72 0.13 90);
-  --medium-bg:   oklch(0.97 0.030 90);
-  --low:         oklch(0.58 0.13 155);
-  --low-bg:      oklch(0.96 0.030 155);
+  --high: oklch(0.65 0.17 55);
+  --high-bg: oklch(0.96 0.035 60);
+  --medium: oklch(0.72 0.13 90);
+  --medium-bg: oklch(0.97 0.03 90);
+  --low: oklch(0.58 0.13 155);
+  --low-bg: oklch(0.96 0.03 155);
 }
 
 /* DENSE PRO — slate, monochrome, tighter */
 [data-aesthetic="dense"] {
-  --bg:        oklch(0.985 0 0);
-  --surface:   oklch(1 0 0);
+  --bg: oklch(0.985 0 0);
+  --surface: oklch(1 0 0);
   --surface-2: oklch(0.96 0 0);
-  --ink:       oklch(0.16 0 0);
-  --ink-2:     oklch(0.42 0 0);
-  --ink-3:     oklch(0.60 0 0);
-  --line:      oklch(0.90 0 0);
-  --line-2:    oklch(0.94 0 0);
+  --ink: oklch(0.16 0 0);
+  --ink-2: oklch(0.42 0 0);
+  --ink-3: oklch(0.6 0 0);
+  --line: oklch(0.9 0 0);
+  --line-2: oklch(0.94 0 0);
 
-  --primary:   oklch(0.18 0 0);
+  --primary: oklch(0.18 0 0);
   --primary-2: oklch(0.93 0 0);
-  --accent:    oklch(0.45 0.05 255);
-  --accent-2:  oklch(0.95 0.020 255);
+  --accent: oklch(0.45 0.05 255);
+  --accent-2: oklch(0.95 0.02 255);
 
   --radius: 6px;
 }
 
-html, body { background: var(--bg); color: var(--ink); }
+html,
 body {
-  font-family: 'Geist', ui-sans-serif, system-ui, -apple-system, sans-serif;
-  font-feature-settings: 'ss01', 'cv11';
+  background: var(--bg);
+  color: var(--ink);
+}
+body {
+  font-family:
+    "Geist",
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    sans-serif;
+  font-feature-settings: "ss01", "cv11";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
-.font-display { font-family: 'Instrument Serif', 'Iowan Old Style', Georgia, serif; font-weight: 400; letter-spacing: -0.005em; }
-.font-mono    { font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-feature-settings: 'tnum', 'ss01'; }
+.font-display {
+  font-family: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+  font-weight: 400;
+  letter-spacing: -0.005em;
+}
+.font-mono {
+  font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-feature-settings: "tnum", "ss01";
+}
 
 /* Density */
-[data-density="compact"] { --pad-card: 14px; --pad-row: 10px; --gap-list: 8px; }
-[data-density="regular"] { --pad-card: 20px; --pad-row: 14px; --gap-list: 12px; }
-[data-density="spacious"]{ --pad-card: 28px; --pad-row: 18px; --gap-list: 16px; }
+[data-density="compact"] {
+  --pad-card: 14px;
+  --pad-row: 10px;
+  --gap-list: 8px;
+}
+[data-density="regular"] {
+  --pad-card: 20px;
+  --pad-row: 14px;
+  --gap-list: 12px;
+}
+[data-density="spacious"] {
+  --pad-card: 28px;
+  --pad-row: 18px;
+  --gap-list: 16px;
+}
 
 /* Reusable utilities tied to vars */
-.cg-surface { background: var(--surface); border: 1px solid var(--line); }
-.cg-surface-2 { background: var(--surface-2); }
-.cg-line { border-color: var(--line); }
+.cg-surface {
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.cg-surface-2 {
+  background: var(--surface-2);
+}
+.cg-line {
+  border-color: var(--line);
+}
 
 /* Paper grain — only on garden + editorial, when not disabled via Tweaks */
 html:not([data-grain="off"])[data-aesthetic="garden"] body::before,
 html:not([data-grain="off"])[data-aesthetic="editorial"] body::before {
-  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: .35;
-  background-image: radial-gradient(rgba(80,60,30,.06) 1px, transparent 1px);
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.35;
+  background-image: radial-gradient(
+    rgba(80, 60, 30, 0.06) 1px,
+    transparent 1px
+  );
   background-size: 3px 3px;
   mix-blend-mode: multiply;
 }
 
 /* Focus rings */
-:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px; }
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
 
 /* Hide scrollbar on internal scrollers but keep functionality */
-.scroll-thin::-webkit-scrollbar { width: 6px; height: 6px; }
-.scroll-thin::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+.scroll-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 3px;
+}
 
 /* Animations */
-@keyframes leaf-rustle { 0%,100% { transform: rotate(-3deg);} 50% { transform: rotate(3deg);} }
-@keyframes leaf-hover { 0%,100% { transform: rotate(8deg) translateY(0); } 50% { transform: rotate(10deg) translateY(-6px); } }
-@keyframes paper-breathe-1 { 0%,100% { transform: translate(0, 0) rotate(-2deg); } 50% { transform: translate(2px, -4px) rotate(-1deg); } }
-@keyframes paper-breathe-2 { 0%,100% { transform: translate(-6px, -6px) rotate(-4deg); } 50% { transform: translate(-4px, -10px) rotate(-3deg); } }
-@keyframes paper-breathe-3 { 0%,100% { transform: translate(-12px, -12px) rotate(-6deg); } 50% { transform: translate(-10px, -16px) rotate(-5deg); } }
-@keyframes float-mote { 0% { transform: translateY(0) translateX(0); opacity: 0; } 30% { opacity: .5; } 100% { transform: translateY(-40px) translateX(8px); opacity: 0; } }
-@keyframes fade-up { from { opacity: 0; transform: translateY(6px);} to { opacity: 1; transform: none; } }
-.anim-fade-up { animation: fade-up .35s ease both; }
-@keyframes shimmer { 0% { background-position: -200px 0 } 100% { background-position: 200px 0 } }
-.shimmer { background: linear-gradient(90deg, var(--surface-2) 0%, var(--line-2) 50%, var(--surface-2) 100%); background-size: 400px 100%; animation: shimmer 1.4s linear infinite; }
+@keyframes leaf-rustle {
+  0%,
+  100% {
+    transform: rotate(-3deg);
+  }
+  50% {
+    transform: rotate(3deg);
+  }
+}
+@keyframes leaf-hover {
+  0%,
+  100% {
+    transform: rotate(8deg) translateY(0);
+  }
+  50% {
+    transform: rotate(10deg) translateY(-6px);
+  }
+}
+@keyframes paper-breathe-1 {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(-2deg);
+  }
+  50% {
+    transform: translate(2px, -4px) rotate(-1deg);
+  }
+}
+@keyframes paper-breathe-2 {
+  0%,
+  100% {
+    transform: translate(-6px, -6px) rotate(-4deg);
+  }
+  50% {
+    transform: translate(-4px, -10px) rotate(-3deg);
+  }
+}
+@keyframes paper-breathe-3 {
+  0%,
+  100% {
+    transform: translate(-12px, -12px) rotate(-6deg);
+  }
+  50% {
+    transform: translate(-10px, -16px) rotate(-5deg);
+  }
+}
+@keyframes float-mote {
+  0% {
+    transform: translateY(0) translateX(0);
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translateY(-40px) translateX(8px);
+    opacity: 0;
+  }
+}
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.anim-fade-up {
+  animation: fade-up 0.35s ease both;
+}
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: 200px 0;
+  }
+}
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 0%,
+    var(--line-2) 50%,
+    var(--surface-2) 100%
+  );
+  background-size: 400px 100%;
+  animation: shimmer 1.4s linear infinite;
+}
 
 /* DARK MODE — applies regardless of aesthetic; overrides surfaces. Risk colors stay warm. */
 [data-theme="dark"] {
-  --bg:        oklch(0.16 0.012 80);
-  --surface:   oklch(0.20 0.010 80);
-  --surface-2: oklch(0.24 0.010 80);
-  --ink:       oklch(0.96 0.010 80);
-  --ink-2:     oklch(0.80 0.008 80);
-  --ink-3:     oklch(0.58 0.008 80);
-  --line:      oklch(0.30 0.010 80);
-  --line-2:    oklch(0.25 0.010 80);
+  --bg: oklch(0.16 0.012 80);
+  --surface: oklch(0.2 0.01 80);
+  --surface-2: oklch(0.24 0.01 80);
+  --ink: oklch(0.96 0.01 80);
+  --ink-2: oklch(0.8 0.008 80);
+  --ink-3: oklch(0.58 0.008 80);
+  --line: oklch(0.3 0.01 80);
+  --line-2: oklch(0.25 0.01 80);
 
-  --primary-2: oklch(0.30 0.07 155);
-  --accent-2:  oklch(0.32 0.06 60);
+  --primary-2: oklch(0.3 0.07 155);
+  --accent-2: oklch(0.32 0.06 60);
 
-  --critical-bg: oklch(0.30 0.10 28);
-  --high-bg:     oklch(0.32 0.09 55);
-  --medium-bg:   oklch(0.32 0.07 90);
-  --low-bg:      oklch(0.30 0.06 155);
+  --critical-bg: oklch(0.3 0.1 28);
+  --high-bg: oklch(0.32 0.09 55);
+  --medium-bg: oklch(0.32 0.07 90);
+  --low-bg: oklch(0.3 0.06 155);
 
-  --shadow-sm: 0 1px 0 rgba(0,0,0,.2), 0 1px 2px rgba(0,0,0,.18);
-  --shadow-md: 0 1px 0 rgba(0,0,0,.2), 0 4px 14px -6px rgba(0,0,0,.45);
+  --shadow-sm: 0 1px 0 rgba(0, 0, 0, 0.2), 0 1px 2px rgba(0, 0, 0, 0.18);
+  --shadow-md: 0 1px 0 rgba(0, 0, 0, 0.2), 0 4px 14px -6px rgba(0, 0, 0, 0.45);
 }
-[data-theme="dark"][data-aesthetic="garden"] { --primary: oklch(0.62 0.10 155); }
-[data-theme="dark"][data-aesthetic="editorial"] { --primary: oklch(0.65 0.13 30); }
-[data-theme="dark"][data-aesthetic="cool"]  { --primary: oklch(0.66 0.16 255); }
-[data-theme="dark"][data-aesthetic="dense"] { --primary: oklch(0.88 0 0); --accent: oklch(0.66 0.12 255); }
+[data-theme="dark"][data-aesthetic="garden"] {
+  --primary: oklch(0.62 0.1 155);
+}
+[data-theme="dark"][data-aesthetic="editorial"] {
+  --primary: oklch(0.65 0.13 30);
+}
+[data-theme="dark"][data-aesthetic="cool"] {
+  --primary: oklch(0.66 0.16 255);
+}
+[data-theme="dark"][data-aesthetic="dense"] {
+  --primary: oklch(0.88 0 0);
+  --accent: oklch(0.66 0.12 255);
+}
 
 /* Disable paper grain in dark mode */
-[data-theme="dark"] body::before { display: none !important; }
+[data-theme="dark"] body::before {
+  display: none !important;
+}
 
 /* Print-friendly clause numbers */
-.num-circle { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; font-family: 'Geist Mono', monospace; font-size: 11px; font-weight: 500; }
+.num-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-family: "Geist Mono", monospace;
+  font-size: 11px;
+  font-weight: 500;
+}
 
 /* keyframes used by counter modal spinner */
-@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 /* Ask-assistant typing dots */
-@keyframes dotBounce { 0%, 60%, 100% { transform: translateY(0); opacity: .4; } 30% { transform: translateY(-4px); opacity: 1; } }
-.cg-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3); display: inline-block; animation: dotBounce 1s infinite ease-in-out; }
+@keyframes dotBounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+.cg-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  display: inline-block;
+  animation: dotBounce 1s infinite ease-in-out;
+}

@@ -1269,7 +1269,7 @@ function DetailSidebar({
           style={{ color: 'var(--ink-3)' }}
         />
         <p className="text-[12px] leading-relaxed" style={{ color: 'var(--ink-3)' }}>
-          ClauseGardian summarizes contracts for you — but it isn&apos;t your lawyer. For anything
+          ClauseGuardian summarizes contracts for you — but it isn&apos;t your lawyer. For anything
           you&apos;re not sure about, share with a real attorney before signing.
         </p>
       </div>
@@ -1487,7 +1487,7 @@ export function FailedState({
 
         <div className="mt-7 flex items-center justify-center gap-2">
           <Btn variant="soft" onClick={onBack}>
-            Back to garden
+            Back to Home
           </Btn>
           <Btn variant="primary" icon={Icon.Upload} onClick={onBack}>
             Upload a different file

@@ -130,7 +130,7 @@ export default function ContractDetailPage() {
     return () => clearInterval(t)
   }, [contract, id, load])
 
-  // "?" toggles Ask ClauseGardian on the detail page.
+  // "?" toggles Ask ClauseGuardian on the detail page.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (

@@ -1,4 +1,3 @@
-import json
 import logging
 
 from langchain_core.messages import HumanMessage
@@ -8,6 +7,7 @@ from app.config import get_settings
 from app.db.models import ClauseCreate
 from app.db.supabase import get_service_client
 from app.services.pipeline import CLAUSE_SEVERITIES
+from app.services.utils import parse_llm_json
 
 logger = logging.getLogger(__name__)
 
@@ -96,16 +96,10 @@ async def _llm_score_severity(
 
 
 def _parse_severity(content: str) -> str:
-    content = content.strip()
-    if content.startswith("```"):
-        lines = content.splitlines()
-        content = "\n".join(lines[1:-1]).strip()
-    try:
-        data = json.loads(content)
+    data = parse_llm_json(content)
+    if isinstance(data, dict):
         severity = data.get("severity", "").lower().strip()
         if severity in SEVERITY_ORDER:
             return severity
-    except json.JSONDecodeError:
-        pass
     logger.warning(f"[scorer] Could not parse severity from LLM response: {content[:200]!r}")
     return "medium"

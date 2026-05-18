@@ -1,4 +1,3 @@
-import json
 import logging
 from datetime import datetime
 
@@ -8,6 +7,7 @@ from langchain_openai import ChatOpenAI
 
 from app.config import get_settings
 from app.db.supabase import get_service_client
+from app.services.utils import parse_llm_json
 
 logger = logging.getLogger(__name__)
 
@@ -79,16 +79,11 @@ async def _extract_from_chunk(llm: ChatOpenAI, text: str) -> list[dict]:
 
 
 def _parse_response(content: str) -> list[dict]:
-    content = content.strip()
-    if content.startswith("```"):
-        lines = content.splitlines()
-        content = "\n".join(lines[1:-1]).strip()
-    try:
-        data = json.loads(content)
-        return data.get("deadlines", []) if isinstance(data, dict) else []
-    except json.JSONDecodeError:
+    data = parse_llm_json(content)
+    if not isinstance(data, dict):
         logger.warning(f"[deadlines] Failed to parse LLM response: {content[:200]!r}")
         return []
+    return data.get("deadlines", [])
 
 
 def _build_llm(contract_id: str, settings) -> ChatOpenAI:

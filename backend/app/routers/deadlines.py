@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.db.models import DeadlineRead
 from app.db.supabase import get_service_client
 from app.middleware.clerk_auth import get_current_user_id
+from app.routers.deps import verify_contract_owner
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -15,11 +16,8 @@ async def list_deadlines(
     contract_id: str,
     clerk_user_id: str = Depends(get_current_user_id),
 ) -> list[DeadlineRead]:
+    verify_contract_owner(contract_id, clerk_user_id)
     client = get_service_client()
-    try:
-        client.table("contracts").select("id").eq("id", contract_id).eq("clerk_user_id", clerk_user_id).single().execute()
-    except Exception:
-        raise HTTPException(status_code=404, detail="Contract not found.")
     try:
         resp = (
             client.table("deadlines")

@@ -1,4 +1,4 @@
-// lib/cg/data.ts — ClauseGardian design view-model: types, helpers, seed data.
+// lib/cg/data.ts — ClauseGuardian design view-model: types, helpers, seed data.
 // The real backend (lib/api.ts) is mapped onto these shapes by lib/cg/adapt.ts.
 
 export type Severity = 'critical' | 'high' | 'medium' | 'low'

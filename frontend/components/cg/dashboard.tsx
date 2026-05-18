@@ -781,14 +781,14 @@ function EmptyResults({
           Nothing in this bed of the garden.
         </p>
         <p className="text-sm mt-2 max-w-md mx-auto" style={{ color: 'var(--ink-2)' }}>
-          Try clearing your filter, or plant a new contract.
+          Try clearing your filter, or upload a new contract.
         </p>
         <div className="mt-5 flex items-center justify-center gap-2">
           <Btn variant="soft" onClick={onClear}>
             Clear filters
           </Btn>
           <Btn variant="primary" icon={Icon.Upload} onClick={onUpload}>
-            Plant a contract
+            upload a contract
           </Btn>
         </div>
       </div>
@@ -817,7 +817,7 @@ function DashboardZeroState({
             className="text-[11px] uppercase tracking-[0.16em] font-medium"
             style={{ color: 'var(--ink-3)' }}
           >
-            Welcome to ClauseGardian
+            Welcome to ClauseGuardian
           </p>
           <h1
             className="font-display mt-3 text-[48px] md:text-[64px] leading-[1.08]"
@@ -1105,7 +1105,7 @@ function DashboardZeroState({
       </section>
 
       <p className="text-center mt-16 text-[12px]" style={{ color: 'var(--ink-3)' }}>
-        ClauseGardian summarizes contracts — but it isn&apos;t your lawyer. For anything important,
+        ClauseGuardian summarizes contracts — but it isn&apos;t your lawyer. For anything important,
         share with a real attorney before signing.
       </p>
     </main>

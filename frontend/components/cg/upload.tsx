@@ -95,7 +95,7 @@ export function UploadModal({
               className="text-[11px] uppercase tracking-[0.16em] font-medium"
               style={{ color: 'var(--ink-3)' }}
             >
-              Plant a contract
+              upload a contract
             </p>
             <h2
               className="font-display text-[28px] leading-[1.22] mt-1.5"

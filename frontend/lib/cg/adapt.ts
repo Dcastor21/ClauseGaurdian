@@ -1,4 +1,4 @@
-// lib/cg/adapt.ts — maps the real backend (lib/api.ts) onto the ClauseGardian
+// lib/cg/adapt.ts — maps the real backend (lib/api.ts) onto the ClauseGuardian
 // design view-model. Fields the backend doesn't track (counterparty, kind,
 // verdict, plain-English titles, etc.) are derived best-effort so the redesigned
 // UI renders with live data instead of mock seed contracts.
